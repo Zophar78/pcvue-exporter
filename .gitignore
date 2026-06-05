@@ -1,0 +1,29 @@
+# Binaries
+pcvue-exporter
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Build outputs
+/bin/
+/dist/
+/build/
+/out/
+coverage.out
+
+# Go workspace / temp
+*.test
+*.prof
+
+# Env / local config
+.env
+config.yml
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

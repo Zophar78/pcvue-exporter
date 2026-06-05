@@ -1,0 +1,28 @@
+services:
+  pcvue-exporter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
+        REVISION: ${REVISION:-unknown}
+        BRANCH: ${BRANCH:-unknown}
+        BUILD_DATE: ${BUILD_DATE:-unknown}
+        BUILD_USER: ${BUILD_USER:-docker}
+    image: pcvue-exporter:local
+    container_name: pcvue-exporter
+    restart: unless-stopped
+
+    ports:
+      - "9718:9718"
+
+    environment:
+      PCVUE_PASSWORD: ${PCVUE_PASSWORD}
+
+    volumes:
+      - ./config.example.yml:/config/config.yml:ro
+
+    command:
+      - "--config.file=/config/config.yml"
+      - "--log.level=info"
+      - "--log.format=json"

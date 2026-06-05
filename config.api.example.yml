@@ -1,0 +1,42 @@
+pcvue:
+  base_url: "https://wso2.example.local/pcvue"
+  insecure_skip_verify: false
+  timeout: "10s"
+
+  auth:
+    type: "oauth2_client_credentials"
+    token_url: "https://wso2.example.local/oauth2/token"
+    client_id: "${PCVUE_CLIENT_ID}"
+    client_secret: "${PCVUE_CLIENT_SECRET}"
+    username: "monitoring-user"
+    password: "${PCVUE_PASSWORD}"
+    scopes:
+      - "RealtimeData"
+      - "RealtimeAlarm"
+
+labels:
+  site: "zurich"
+  environment: "prd"
+
+variables:
+  - name: "BMS.HVAC.TEMP_SUPPLY"
+    alias: "hvac_temp_supply"
+    area: "hvac"
+    type: "gauge"
+
+  - name: "BMS.UPS.BATTERY_LEVEL"
+    alias: "ups_battery_level"
+    area: "power"
+    type: "gauge"
+
+alarms:
+  aggregate: true
+
+  whitelist:
+    - id: "SCADA_LINK_DOWN"
+      pcvue_name: "SYSTEM.SCADA_LINK_DOWN"
+      severity: "critical"
+
+    - id: "UPS_BATTERY_FAULT"
+      pcvue_name: "POWER.UPS_BATTERY_FAULT"
+      severity: "critical"
