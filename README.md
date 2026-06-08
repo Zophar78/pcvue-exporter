@@ -32,6 +32,80 @@ pcvue_alarm_active{alarm_id="UPS_BATTERY_FAULT",pcvue_name="POWER.UPS_BATTERY_FA
 pcvue_exporter_build_info{version="0.0.1",revision="...",branch="main",build_date="...",build_user="...",goversion="..."} 1
 ```
 
+## Authentication
+
+The exporter supports two OAuth2 authentication modes:
+
+- `oauth2_password`: direct authentication against the PCVue REST API.
+- `oauth2_client_credentials`: machine-to-machine authentication, typically when PCVue is exposed through an API gateway such as WSO2.
+
+The OAuth2 token endpoint is configurable through `pcvue.auth.token_url`.
+
+### PCVue direct authentication
+
+When the exporter connects directly to PCVue, the PCVue WST REST API uses an OAuth2 password grant.
+
+In this mode, the exporter needs:
+
+- a PCVue OAuth client ID;
+- a PCVue OAuth client secret;
+- a PCVue/Web Services username;
+- the corresponding password.
+
+Example:
+
+```yaml
+pcvue:
+  base_url: "https://pcvue.example.local"
+  insecure_skip_verify: true
+  timeout: "10s"
+
+  auth:
+    type: "oauth2_password"
+    token_url: "https://pcvue.example.local/OAuth/token"
+    client_id: "${PCVUE_CLIENT_ID}"
+    client_secret: "${PCVUE_CLIENT_SECRET}"
+    username: "${PCVUE_USERNAME}"
+    password: "${PCVUE_PASSWORD}"
+    scopes:
+      - "RealtimeData"
+      - "RealtimeAlarm"
+```
+The exporter will request an access token from:
+```http
+POST /OAuth/token
+```
+
+### WSO2 / API Gateway authentication
+
+When PCVue is exposed through WSO2 or another API gateway, the preferred mode is usually OAuth2 client credentials.
+
+In this mode, the exporter does not use a PCVue user/password directly. It authenticates as a technical client using:
+
+a client ID;
+a client secret;
+optional scopes.
+
+Example:
+```yaml
+pcvue:
+  base_url: "https://wso2.example.local/pcvue"
+  insecure_skip_verify: false
+  timeout: "10s"
+
+  auth:
+    type: "oauth2_client_credentials"
+    token_url: "https://wso2.example.local/oauth2/token"
+    client_id: "${PCVUE_CLIENT_ID}"
+    client_secret: "${PCVUE_CLIENT_SECRET}"
+    scopes:
+      - "pcvue.read"
+```
+The exporter will request an access token from:$
+```http
+POST /oauth2/token
+```
+
 
 ## Running locally
 ```bash
