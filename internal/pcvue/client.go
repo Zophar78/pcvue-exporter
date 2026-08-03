@@ -172,7 +172,9 @@ func (c *Client) ReadVariables(ctx context.Context, names []string) ([]VariableV
 	if err != nil {
 		return nil, fmt.Errorf("execute variable bulk read request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("pcvue variable bulk read failed: status=%d", resp.StatusCode)
@@ -254,7 +256,9 @@ func (c *Client) ReadActiveAlarms(ctx context.Context) ([]Alarm, error) {
 	if err != nil {
 		return nil, fmt.Errorf("execute alarm values request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("pcvue alarm values read failed: status=%d", resp.StatusCode)
