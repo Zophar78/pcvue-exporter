@@ -33,7 +33,9 @@ alarms:
     - id: "SCADA_LINK_DOWN"
       pcvue_name: "SYSTEM.SCADA_LINK_DOWN"
       severity: "critical"
+      area: "system"
 
     - id: "UPS_BATTERY_FAULT"
       pcvue_name: "POWER.UPS_BATTERY_FAULT"
       severity: "critical"
+      area: "power"

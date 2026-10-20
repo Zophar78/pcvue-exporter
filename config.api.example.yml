@@ -1,14 +1,14 @@
 pcvue:
-  base_url: "https://wso2.example.local/pcvue"
+  base_url: "https://pcvue.example.local"
   insecure_skip_verify: false
   timeout: "10s"
 
   auth:
-    type: "oauth2_client_credentials"
-    token_url: "https://wso2.example.local/oauth2/token"
+    type: "oauth2_password"
+    token_url: "https://pcvue.example.local/OAuth/token"
     client_id: "${PCVUE_CLIENT_ID}"
     client_secret: "${PCVUE_CLIENT_SECRET}"
-    username: "monitoring-user"
+    username: "${PCVUE_USERNAME}"
     password: "${PCVUE_PASSWORD}"
     scopes:
       - "RealtimeData"
@@ -36,7 +36,9 @@ alarms:
     - id: "SCADA_LINK_DOWN"
       pcvue_name: "SYSTEM.SCADA_LINK_DOWN"
       severity: "critical"
+      area: "system"
 
     - id: "UPS_BATTERY_FAULT"
       pcvue_name: "POWER.UPS_BATTERY_FAULT"
       severity: "critical"
+      area: "power"

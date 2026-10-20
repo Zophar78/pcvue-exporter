@@ -1,28 +1,63 @@
+x-exporter-defaults: &exporter-defaults
+  build:
+    context: .
+    dockerfile: Dockerfile
+    args:
+      VERSION: ${VERSION:-dev}
+      REVISION: ${REVISION:-unknown}
+      BRANCH: ${BRANCH:-unknown}
+      BUILD_DATE: ${BUILD_DATE:-unknown}
+      BUILD_USER: ${BUILD_USER:-docker}
+  image: pcvue-exporter:local
+  restart: unless-stopped
+  command:
+    - "--config.file=/config/config.yml"
+    - "--log.level=info"
+    - "--log.format=json"
+
 services:
   pcvue-exporter:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        VERSION: ${VERSION:-dev}
-        REVISION: ${REVISION:-unknown}
-        BRANCH: ${BRANCH:-unknown}
-        BUILD_DATE: ${BUILD_DATE:-unknown}
-        BUILD_USER: ${BUILD_USER:-docker}
-    image: pcvue-exporter:local
+    <<: *exporter-defaults
     container_name: pcvue-exporter
-    restart: unless-stopped
-
     ports:
       - "9718:9718"
-
     environment:
-      PCVUE_PASSWORD: ${PCVUE_PASSWORD}
-
+      PCVUE_CLIENT_ID: ${PCVUE_CLIENT_ID:-}
+      PCVUE_CLIENT_SECRET: ${PCVUE_CLIENT_SECRET:-}
+      PCVUE_USERNAME: ${PCVUE_USERNAME:-}
+      PCVUE_PASSWORD: ${PCVUE_PASSWORD:-}
     volumes:
-      - ./config.example.yml:/config/config.yml:ro
+      - ./config.api.example.yml:/config/config.yml:ro
 
-    command:
-      - "--config.file=/config/config.yml"
-      - "--log.level=info"
-      - "--log.format=json"
+  pcvue-exporter-wso2:
+    <<: *exporter-defaults
+    profiles: ["wso2"]
+    container_name: pcvue-exporter-wso2
+    ports:
+      - "9720:9718"
+    environment:
+      PCVUE_CLIENT_ID: ${PCVUE_CLIENT_ID:-}
+      PCVUE_CLIENT_SECRET: ${PCVUE_CLIENT_SECRET:-}
+    volumes:
+      - ./config.wso2.example.yml:/config/config.yml:ro
+
+  fake-pcvue:
+    profiles: ["fake"]
+    build:
+      context: ./dev/fake-pcvue
+      dockerfile: Dockerfile
+    image: pcvue-fake:local
+    restart: unless-stopped
+    ports:
+      - "8083:8080"
+
+  pcvue-exporter-fake:
+    <<: *exporter-defaults
+    profiles: ["fake"]
+    container_name: pcvue-exporter-fake
+    depends_on:
+      - fake-pcvue
+    ports:
+      - "9719:9718"
+    volumes:
+      - ./dev/fake-pcvue/config.yml:/config/config.yml:ro

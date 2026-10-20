@@ -25,12 +25,14 @@ pcvue_up 1
 pcvue_scrape_duration_seconds 0.123
 pcvue_variable_value{name="BMS.UPS.BATTERY_LEVEL",alias="ups_battery_level",area="power"} 87
 pcvue_variable_quality{name="BMS.UPS.BATTERY_LEVEL",alias="ups_battery_level",area="power"} 192
-pcvue_alarm_active_total{severity="critical",area="power"} 2
-pcvue_alarm_unack_total{severity="critical",area="power"} 1
+pcvue_alarm_active_total{severity="critical",assoc_label="power"} 2
+pcvue_alarm_unack_total{severity="critical",assoc_label="power"} 1
 pcvue_alarm_oldest_active_age_seconds 1840
 pcvue_alarm_active{alarm_id="UPS_BATTERY_FAULT",pcvue_name="POWER.UPS_BATTERY_FAULT",severity="critical",area="power"} 1
 pcvue_exporter_build_info{version="0.0.1",revision="...",branch="main",build_date="...",build_user="...",goversion="..."} 1
 ```
+
+Alarm aggregate metrics use `assoc_label`, read from the PCVue alarm properties. Whitelisted alarm metrics use `area`, configured per alarm in `alarms.whitelist`.
 
 ## Authentication
 
@@ -147,6 +149,31 @@ Build the image:
 ```bash
 docker build -t pcvue-exporter:local .
 ```
+
+The default Compose service connects directly to the WST API with the OAuth password grant. Provide the four credentials in the environment, then run:
+
+```bash
+export PCVUE_CLIENT_ID='your-client-id'
+export PCVUE_CLIENT_SECRET='your-client-secret'
+export PCVUE_USERNAME='your-wst-username'
+export PCVUE_PASSWORD='your-wst-password'
+docker compose up --build
+```
+
+To run the fake WST API and a second exporter instance, use the `fake` profile. The exporter metrics will be available on port `9719`, and the fake API on port `8083`:
+
+```bash
+docker compose --profile fake up --build pcvue-exporter-fake
+```
+
+For a WSO2/API-gateway deployment, provide `PCVUE_CLIENT_ID` and `PCVUE_CLIENT_SECRET`, then run the separate `wso2` profile. Its metrics endpoint is exposed on port `9720`:
+
+```bash
+docker compose --profile wso2 up --build pcvue-exporter-wso2
+```
+
+Replace the example URLs and credentials before connecting to a real PCVue server or gateway.
+
 Run it:
 ```bash
 docker run --rm \

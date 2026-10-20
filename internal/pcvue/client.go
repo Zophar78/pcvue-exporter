@@ -19,6 +19,7 @@ import (
 const (
 	authTypeOAuth2ClientCredentials = "oauth2_client_credentials"
 	authTypeOAuth2Password          = "oauth2_password"
+	alarmReadSize                   = 500
 )
 
 type Client struct {
@@ -231,7 +232,7 @@ func (c *Client) ReadActiveAlarms(ctx context.Context) ([]Alarm, error) {
 
 	// À ajuster selon les propriétés d’alarme réellement voulues dans la doc PCVue.
 	query.Set("Language", "1")
-	query.Set("Size", "500")
+	query.Set("Size", strconv.Itoa(alarmReadSize))
 	query.Set("MinLevel", "0")
 	query.Set("MaxLevel", "4")
 	query.Set("PriorityFilter", "All")
@@ -277,6 +278,12 @@ func (c *Client) ReadActiveAlarms(ctx context.Context) ([]Alarm, error) {
 
 	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
 		return nil, fmt.Errorf("decode alarm values response: %w", err)
+	}
+	if decoded.MaxNumberExceeded {
+		return nil, fmt.Errorf(
+			"pcvue alarm values response exceeded the maximum size of %d; refusing partial results",
+			alarmReadSize,
+		)
 	}
 
 	alarms := make([]Alarm, 0, len(decoded.Values))
