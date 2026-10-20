@@ -112,21 +112,21 @@ func New(cfg *config.Config, client *pcvue.Client, logger *slog.Logger) *Collect
 		alarmWhitelistedActive: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "alarm", "active"),
 			"Whether a whitelisted PCVue alarm is active.",
-			[]string{"alarm_id", "pcvue_name", "severity"},
+			[]string{"alarm_id", "pcvue_name", "severity", "area"},
 			commonLabels,
 		),
 
 		alarmWhitelistedUnack: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "alarm", "unack"),
 			"Whether a whitelisted PCVue alarm is active and unacknowledged.",
-			[]string{"alarm_id", "pcvue_name", "severity"},
+			[]string{"alarm_id", "pcvue_name", "severity", "area"},
 			commonLabels,
 		),
 
 		alarmWhitelistedAge: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "alarm", "age_seconds"),
 			"Age of a whitelisted active PCVue alarm in seconds.",
-			[]string{"alarm_id", "pcvue_name", "severity"},
+			[]string{"alarm_id", "pcvue_name", "severity", "area"},
 			commonLabels,
 		),
 	}
@@ -345,6 +345,7 @@ func (c *Collector) collectWhitelistedAlarms(ch chan<- prometheus.Metric, alarms
 			expected.ID,
 			expected.PCVueName,
 			expected.Severity,
+			expected.Area,
 		)
 
 		ch <- prometheus.MustNewConstMetric(
@@ -354,6 +355,7 @@ func (c *Collector) collectWhitelistedAlarms(ch chan<- prometheus.Metric, alarms
 			expected.ID,
 			expected.PCVueName,
 			expected.Severity,
+			expected.Area,
 		)
 
 		ch <- prometheus.MustNewConstMetric(
@@ -363,6 +365,7 @@ func (c *Collector) collectWhitelistedAlarms(ch chan<- prometheus.Metric, alarms
 			expected.ID,
 			expected.PCVueName,
 			expected.Severity,
+			expected.Area,
 		)
 	}
 }

@@ -31,8 +31,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
       ./cmd/pcvue-exporter
 
 FROM scratch
-
-FROM scratch
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=builder /out/pcvue-exporter /pcvue-exporter
 
 EXPOSE 9718

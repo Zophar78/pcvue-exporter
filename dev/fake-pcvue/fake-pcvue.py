@@ -58,15 +58,23 @@ class Handler(BaseHTTPRequestHandler):
             }, 401)
             return
 
-        if grant_type == "client_credentials":
-            self._token_response()
-            return
-
         if grant_type == "password":
             if username != VALID_USERNAME or password != VALID_PASSWORD:
                 self._json({
                     "error": "invalid_grant",
                     "error_description": "Invalid username or password",
+                }, 400)
+                return
+
+            self._token_response()
+            return
+
+        if grant_type == "refresh_token":
+            refresh_token = form.get("refresh_token", [""])[0]
+            if refresh_token != "fake-refresh-token":
+                self._json({
+                    "error": "invalid_grant",
+                    "error_description": "Invalid refresh token",
                 }, 400)
                 return
 
@@ -86,20 +94,17 @@ class Handler(BaseHTTPRequestHandler):
             self._handle_oauth_token()
             return
 
-        # WSO2-like style.
-        if parsed.path == "/oauth2/token":
-            self._handle_oauth_token()
-            return
-
         if parsed.path == "/RealTimeData/v2/BulkRead":
             if not self._authorized():
                 self._json({"error": "unauthorized"}, 401)
                 return
 
+            request = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))))
+            requested_variables = request.get("Variables", [])
             now = time.strftime("%Y-%m-%dT%H:%M:%S.000", time.gmtime())
 
-            # Shape aligned with PCVue BulkRead style: object keyed by variable name.
-            self._json({
+            # BulkRead returns an object keyed by the requested variable names.
+            values = {
                 "BMS.UPS.BATTERY_LEVEL": {
                     "value": 87,
                     "Timestamp": now,
@@ -122,18 +127,8 @@ class Handler(BaseHTTPRequestHandler):
                         "Description": "HVAC supply temperature",
                     },
                 },
-                "SYSTEM.SCADA_LINK_STATUS": {
-                    "value": True,
-                    "Timestamp": now,
-                    "quality": "Good",
-                    "QualityValue": 192,
-                    "alarm": None,
-                    "properties": {
-                        "VariableName": "SYSTEM.SCADA_LINK_STATUS",
-                        "Description": "SCADA link status",
-                    },
-                },
-            })
+            }
+            self._json({name: values[name] for name in requested_variables if name in values})
             return
 
         self._json({"error": "not found"}, 404)
@@ -173,10 +168,8 @@ class Handler(BaseHTTPRequestHandler):
             # Shape aligned with PCVue alarm Values style:
             # values[] with timestamp, eventCode, properties[], eventValue.
             #
-            # In our exporter example, we currently map:
-            # properties[0] -> alarm name
-            # properties[1] -> area
-            # properties[2] -> label
+            # Properties follow the order requested by the exporter:
+            # VariableName, AssocLabel, AlarmLevel, Description.
             self._json({
                 "values": [
                     {
@@ -186,6 +179,7 @@ class Handler(BaseHTTPRequestHandler):
                         "properties": [
                             "POWER.UPS_BATTERY_FAULT",
                             "power",
+                            "critical",
                             "UPS battery fault",
                         ],
                         "eventValue": 16,
@@ -197,6 +191,7 @@ class Handler(BaseHTTPRequestHandler):
                         "properties": [
                             "SYSTEM.SCADA_LINK_DOWN",
                             "system",
+                            "critical",
                             "SCADA link down",
                         ],
                         "eventValue": 16,
@@ -208,6 +203,7 @@ class Handler(BaseHTTPRequestHandler):
                         "properties": [
                             "BMS.HVAC_SENSOR_UNAVAILABLE",
                             "hvac",
+                            "warning",
                             "HVAC sensor unavailable",
                         ],
                         "eventValue": 8,
