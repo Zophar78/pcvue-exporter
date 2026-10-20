@@ -3,6 +3,7 @@ package collector
 import (
 	"context"
 	"log/slog"
+	"maps"
 	"strings"
 	"time"
 
@@ -37,9 +38,7 @@ func New(cfg *config.Config, client *pcvue.Client, logger *slog.Logger) *Collect
 	const namespace = "pcvue"
 
 	commonLabels := prometheus.Labels{}
-	for k, v := range cfg.Labels {
-		commonLabels[k] = v
-	}
+	maps.Copy(commonLabels, cfg.Labels)
 
 	return &Collector{
 		cfg:    cfg,

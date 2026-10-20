@@ -200,7 +200,10 @@ func (c *Client) ReadVariables(ctx context.Context, names []string) ([]VariableV
 			continue
 		}
 
-		timestamp, _ := parsePCVueTime(item.Timestamp)
+		timestamp, err := parsePCVueTime(item.Timestamp)
+		if err != nil {
+			return nil, fmt.Errorf("parse timestamp for variable %q: %w", name, err)
+		}
 
 		result = append(result, VariableValue{
 			Name:      name,
@@ -298,7 +301,10 @@ func (c *Client) ReadActiveAlarms(ctx context.Context) ([]Alarm, error) {
 		alarmLevel := propertyAt(item.Properties, 2)  // AlarmLevel
 		description := propertyAt(item.Properties, 3) // Description
 
-		timestamp, _ := parsePCVueTime(item.Timestamp)
+		timestamp, err := parsePCVueTime(item.Timestamp)
+		if err != nil {
+			return nil, fmt.Errorf("parse timestamp for alarm %q: %w", name, err)
+		}
 
 		alarms = append(alarms, Alarm{
 			Name:         name,
@@ -362,6 +368,11 @@ func toFloat64(value any) (float64, bool) {
 }
 
 func parsePCVueTime(value string) (time.Time, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Time{}, nil
+	}
+
 	layouts := []string{
 		time.RFC3339,
 		"2006-01-02T15:04:05.999",
