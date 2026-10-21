@@ -1,3 +1,4 @@
+// Package main starts the PCVue Prometheus exporter.
 package main
 
 import (

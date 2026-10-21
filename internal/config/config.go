@@ -1,3 +1,4 @@
+// Package config loads, defaults, and validates exporter configuration.
 package config
 
 import (
@@ -9,6 +10,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Config contains the complete exporter configuration.
 type Config struct {
 	PCVue     PCVueConfig       `yaml:"pcvue"`
 	Labels    map[string]string `yaml:"labels"`
@@ -16,6 +18,7 @@ type Config struct {
 	Alarms    AlarmConfig       `yaml:"alarms"`
 }
 
+// PCVueConfig contains connection and timeout settings for the PCVue API.
 type PCVueConfig struct {
 	BaseURL            string        `yaml:"base_url"`
 	Auth               AuthConfig    `yaml:"auth"`
@@ -23,6 +26,7 @@ type PCVueConfig struct {
 	Timeout            time.Duration `yaml:"timeout"`
 }
 
+// AuthConfig contains credentials and scopes for the configured OAuth2 flow.
 type AuthConfig struct {
 	Type         string   `yaml:"type"`
 	TokenURL     string   `yaml:"token_url"`
@@ -33,6 +37,7 @@ type AuthConfig struct {
 	Scopes       []string `yaml:"scopes"`
 }
 
+// VariableConfig selects a PCVue variable and defines its Prometheus labels and type.
 type VariableConfig struct {
 	Name  string `yaml:"name"`
 	Alias string `yaml:"alias"`
@@ -40,11 +45,13 @@ type VariableConfig struct {
 	Type  string `yaml:"type"`
 }
 
+// AlarmConfig controls aggregate alarm metrics and the alarm whitelist.
 type AlarmConfig struct {
 	Aggregate bool          `yaml:"aggregate"`
 	Whitelist []AlarmFilter `yaml:"whitelist"`
 }
 
+// AlarmFilter identifies a PCVue alarm and its Prometheus labels.
 type AlarmFilter struct {
 	ID        string `yaml:"id"`
 	PCVueName string `yaml:"pcvue_name"`
@@ -52,6 +59,9 @@ type AlarmFilter struct {
 	Area      string `yaml:"area"`
 }
 
+// Load reads a YAML configuration file, expands environment variables, applies defaults,
+// and validates required fields. It returns an error if the file cannot be read or parsed,
+// or if required configuration is missing.
 func Load(path string) (*Config, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {

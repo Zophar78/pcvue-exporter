@@ -1,3 +1,4 @@
+// Package collector exposes configured PCVue values and alarms as Prometheus metrics.
 package collector
 
 import (
@@ -13,6 +14,7 @@ import (
 	"github.com/Zophar78/pcvue-exporter/internal/pcvue"
 )
 
+// Collector gathers configured PCVue data for Prometheus scrapes.
 type Collector struct {
 	cfg    *config.Config
 	client *pcvue.Client
@@ -34,6 +36,7 @@ type Collector struct {
 	alarmWhitelistedAge    *prometheus.Desc
 }
 
+// New creates a collector using the supplied configuration, PCVue client, and logger.
 func New(cfg *config.Config, client *pcvue.Client, logger *slog.Logger) *Collector {
 	const namespace = "pcvue"
 
@@ -131,6 +134,7 @@ func New(cfg *config.Config, client *pcvue.Client, logger *slog.Logger) *Collect
 	}
 }
 
+// Describe sends the descriptors for every metric the collector can emit.
 func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.up
 	ch <- c.scrapeDurationSeconds
@@ -146,6 +150,8 @@ func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.alarmWhitelistedAge
 }
 
+// Collect fetches configured PCVue data and sends the resulting metrics to ch.
+// A failed variable or alarm read sets pcvue_up to 0 and emits a scrape error metric.
 func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	start := time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), c.cfg.PCVue.Timeout)
