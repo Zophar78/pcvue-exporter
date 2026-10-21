@@ -1,7 +1,6 @@
 package pcvue
 
 import (
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -34,7 +33,7 @@ func TestReadActiveAlarmsRejectsTruncatedResponse(t *testing.T) {
 		}),
 	}
 
-	_, err := client.ReadActiveAlarms(context.Background())
+	_, err := client.ReadActiveAlarms(t.Context())
 	if err == nil || !strings.Contains(err.Error(), "refusing partial results") {
 		t.Fatalf("expected truncated response error, got %v", err)
 	}
@@ -60,7 +59,7 @@ func TestReadVariablesTimestamp(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			client := newTestClient(t, test.response)
-			values, err := client.ReadVariables(context.Background(), []string{"PUMP"})
+			values, err := client.ReadVariables(t.Context(), []string{"PUMP"})
 
 			if test.wantError != "" {
 				if err == nil || !strings.Contains(err.Error(), test.wantError) {
@@ -99,7 +98,7 @@ func TestReadActiveAlarmsTimestamp(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			client := newTestClient(t, test.response)
-			alarms, err := client.ReadActiveAlarms(context.Background())
+			alarms, err := client.ReadActiveAlarms(t.Context())
 
 			if test.wantError != "" {
 				if err == nil || !strings.Contains(err.Error(), test.wantError) {
