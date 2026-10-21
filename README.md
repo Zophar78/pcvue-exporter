@@ -103,7 +103,7 @@ pcvue:
     scopes:
       - "pcvue.read"
 ```
-The exporter will request an access token from:$
+The exporter will request an access token from:
 ```http
 POST /oauth2/token
 ```

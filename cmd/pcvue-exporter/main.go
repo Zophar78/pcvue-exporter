@@ -1,3 +1,4 @@
+// Package main starts the PCVue Prometheus exporter.
 package main
 
 import (
@@ -5,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"time"
 
 	"github.com/Zophar78/pcvue-exporter/internal/collector"
 	"github.com/Zophar78/pcvue-exporter/internal/config"
@@ -137,12 +139,20 @@ func main() {
 
 	logger.Info(
 		"starting pcvue exporter",
-		"listen_address", *webListenAddress,
+		"listen_address", *webListenAddress,	
 		"metrics_path", *webMetricsPath,
 		"config_file", *configFile,
 	)
 
-	if err := http.ListenAndServe(*webListenAddress, mux); err != nil {
+	server := &http.Server{
+		Addr:              *webListenAddress,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		WriteTimeout:      cfg.PCVue.Timeout + 5*time.Second,
+		IdleTimeout:       2 * time.Minute,
+	}
+
+	if err := server.ListenAndServe(); err != nil {
 		logger.Error("server failed", "error", err)
 		os.Exit(1)
 	}

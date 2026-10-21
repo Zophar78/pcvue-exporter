@@ -5,8 +5,10 @@ import (
 	"strconv"
 )
 
+// VariableProperty identifies a PCVue variable property requested from the API.
 type VariableProperty int
 
+// VariableProperty values match the numeric identifiers used by the PCVue API.
 const (
 	VariablePropertyVariableName  VariableProperty = 0
 	VariablePropertyDescription   VariableProperty = 1
@@ -68,12 +70,15 @@ const (
 	VariablePropertyVariableType           VariableProperty = 54
 )
 
+// String returns the numeric identifier expected by the PCVue API.
 func (p VariableProperty) String() string {
 	return strconv.Itoa(int(p))
 }
 
+// AlarmProperty identifies a PCVue alarm property requested from the API.
 type AlarmProperty int
 
+// AlarmProperty values match the numeric identifiers used by the PCVue API.
 const (
 	AlarmPropertyVariableName    AlarmProperty = 0
 	AlarmPropertyAssocLabel      AlarmProperty = 1
@@ -121,6 +126,7 @@ const (
 	AlarmPropertyBinAttr AlarmProperty = 40
 )
 
+// String returns the numeric identifier expected by the PCVue API.
 func (p AlarmProperty) String() string {
 	return strconv.Itoa(int(p))
 }
