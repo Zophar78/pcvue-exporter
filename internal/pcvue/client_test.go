@@ -1,6 +1,8 @@
 package pcvue
 
 import (
+	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -18,6 +20,17 @@ func TestReadActiveAlarmsRejectsTruncatedResponse(t *testing.T) {
 
 		if got := r.URL.Query().Get("Size"); got != "500" {
 			t.Errorf("unexpected alarm response size: %s", got)
+		}
+		query := r.URL.Query()
+		for index, want := range []string{"AlarmOnNotAck", "AlarmOnAck", "AlarmUnavailable"} {
+			if got := query.Get(fmt.Sprintf("Events[%d]", index)); got != want {
+				t.Errorf("Events[%d] = %q, want %q", index, got, want)
+			}
+		}
+		for index, want := range []string{"0", "1", "5", "9"} {
+			if got := query.Get(fmt.Sprintf("Properties[%d]", index)); got != want {
+				t.Errorf("Properties[%d] = %q, want %q", index, got, want)
+			}
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -78,6 +91,59 @@ func TestReadVariablesTimestamp(t *testing.T) {
 	}
 }
 
+func TestReadVariablesAcceptsUTF8BOM(t *testing.T) {
+	client := newTestClient(t, "\uFEFF"+`{"PUMP":{"value":12}}`)
+
+	values, err := client.ReadVariables(t.Context(), []string{"PUMP"})
+	if err != nil {
+		t.Fatalf("ReadVariables() error = %v", err)
+	}
+	if len(values) != 1 || values[0].Value != 12 {
+		t.Fatalf("ReadVariables() = %+v, want one value of 12", values)
+	}
+}
+
+func TestReadVariablesSendsNamedProperties(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request struct {
+			Variables  []string
+			Properties []string
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Errorf("decode request: %v", err)
+		}
+		if len(request.Variables) != 1 || request.Variables[0] != "PUMP" {
+			t.Errorf("Variables = %v, want [PUMP]", request.Variables)
+		}
+		wantProperties := []string{"VariableName", "Description", "Unit"}
+		if len(request.Properties) != len(wantProperties) {
+			t.Errorf("Properties = %v, want %v", request.Properties, wantProperties)
+		} else {
+			for index, want := range wantProperties {
+				if request.Properties[index] != want {
+					t.Errorf("Properties = %v, want %v", request.Properties, wantProperties)
+					break
+				}
+			}
+		}
+
+		_, _ = io.WriteString(w, `{"PUMP":{"value":12}}`)
+	}))
+	defer server.Close()
+
+	client := &Client{
+		baseURL:    server.URL,
+		httpClient: server.Client(),
+		tokenSource: oauth2.StaticTokenSource(&oauth2.Token{
+			AccessToken: "test-token",
+		}),
+	}
+
+	if _, err := client.ReadVariables(t.Context(), []string{"PUMP"}); err != nil {
+		t.Fatalf("ReadVariables() error = %v", err)
+	}
+}
+
 func TestReadActiveAlarmsTimestamp(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -114,6 +180,19 @@ func TestReadActiveAlarmsTimestamp(t *testing.T) {
 				t.Fatalf("ReadActiveAlarms() = %+v, want one alarm with zero timestamp", alarms)
 			}
 		})
+	}
+}
+
+func TestReadActiveAlarmsAcceptsUTF8BOM(t *testing.T) {
+	response := "\uFEFF" + `{"values":[],"maxNumberExceeded":false}`
+	client := newTestClient(t, response)
+
+	alarms, err := client.ReadActiveAlarms(t.Context())
+	if err != nil {
+		t.Fatalf("ReadActiveAlarms() error = %v", err)
+	}
+	if len(alarms) != 0 {
+		t.Fatalf("ReadActiveAlarms() = %+v, want no alarms", alarms)
 	}
 }
 

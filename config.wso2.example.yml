@@ -1,11 +1,11 @@
 pcvue:
-  base_url: "https://wso2.example.local/pcvue"
+  base_url: "${PCVUE_WSO2_BASE_URL}"
   insecure_skip_verify: false
   timeout: "10s"
 
   auth:
     type: "oauth2_client_credentials"
-    token_url: "https://wso2.example.local/oauth2/token"
+    token_url: "${PCVUE_WSO2_TOKEN_URL}"
     client_id: "${PCVUE_CLIENT_ID}"
     client_secret: "${PCVUE_CLIENT_SECRET}"
     scopes:
