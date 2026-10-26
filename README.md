@@ -42,6 +42,25 @@ The exporter supports two OAuth2 authentication modes:
 - `oauth2_client_credentials`: machine-to-machine authentication, typically when PCVue is exposed through an API gateway such as WSO2.
 
 The OAuth2 token endpoint is configurable through `pcvue.auth.token_url`.
+The example configurations read both the API base URL and token URL from
+environment variables so environment-specific hostnames are not committed.
+
+| Configuration | Environment variable | Example value |
+| --- | --- | --- |
+| Direct WST API base URL | `PCVUE_BASE_URL` | `https://pcvue.example.local` |
+| Direct WST token URL | `PCVUE_TOKEN_URL` | `https://pcvue.example.local/OAuth/token` |
+| WSO2 API base URL | `PCVUE_WSO2_BASE_URL` | `https://wso2.example.local/pcvue` |
+| WSO2 token URL | `PCVUE_WSO2_TOKEN_URL` | `https://wso2.example.local/oauth2/token` |
+
+Copy `.env.example` to `.env` and replace the example URLs and credentials with
+your local values. The `.env` file is ignored by Git. To load it into the
+current shell before running the exporter or the exploration script:
+
+```bash
+set -a
+source .env
+set +a
+```
 
 ### PCVue direct authentication
 
@@ -58,13 +77,13 @@ Example:
 
 ```yaml
 pcvue:
-  base_url: "https://pcvue.example.local"
+  base_url: "${PCVUE_BASE_URL}"
   insecure_skip_verify: true
   timeout: "10s"
 
   auth:
     type: "oauth2_password"
-    token_url: "https://pcvue.example.local/OAuth/token"
+    token_url: "${PCVUE_TOKEN_URL}"
     client_id: "${PCVUE_CLIENT_ID}"
     client_secret: "${PCVUE_CLIENT_SECRET}"
     username: "${PCVUE_USERNAME}"
@@ -91,13 +110,13 @@ optional scopes.
 Example:
 ```yaml
 pcvue:
-  base_url: "https://wso2.example.local/pcvue"
+  base_url: "${PCVUE_WSO2_BASE_URL}"
   insecure_skip_verify: false
   timeout: "10s"
 
   auth:
     type: "oauth2_client_credentials"
-    token_url: "https://wso2.example.local/oauth2/token"
+    token_url: "${PCVUE_WSO2_TOKEN_URL}"
     client_id: "${PCVUE_CLIENT_ID}"
     client_secret: "${PCVUE_CLIENT_SECRET}"
     scopes:
@@ -107,6 +126,49 @@ The exporter will request an access token from:
 ```http
 POST /oauth2/token
 ```
+
+## Exploring PCVue variables
+
+The `tools/explore_pcvue.py` script uses the PCVue settings in
+`config.api.example.yml` by default. It supports three modes:
+
+- List branches directly below the root (the default; one level only).
+- List every variable recursively with `--list-variables`; this can take a long time.
+- List variables recursively below a selected branch with `--branch`.
+
+Install the script dependency and export the credentials from the project `.env`
+file into the current shell:
+
+```bash
+python3 -m pip install -r tools/requirements.txt
+cp -n .env.example .env
+set -a
+source .env
+set +a
+```
+
+Run from the repository root:
+
+```bash
+# List root branches only
+python3 tools/explore_pcvue.py --list-root-branches
+
+# List all variables recursively; this may generate many API requests
+python3 tools/explore_pcvue.py --list-variables --output pcvue-variables.json
+
+# List variables below one branch and all its sub-branches
+python3 tools/explore_pcvue.py --branch 'SITE_A/TEMPERATURE/SENSOR_1' \
+  --output branch-variables.json
+
+# Show branch requests and traversal details
+python3 tools/explore_pcvue.py --branch 'SITE_A/TEMPERATURE/SENSOR_1' --debug
+```
+
+The script supports the OAuth mode configured in the YAML. With
+`oauth2_password`, it calls `GET /OAuth/Account/logout` when it finishes to
+close the WST session. It does not call that endpoint with
+`oauth2_client_credentials`. Use `--config path/to/config.yml` to select
+another configuration file.
 
 
 ## Running locally

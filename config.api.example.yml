@@ -1,11 +1,11 @@
 pcvue:
-  base_url: "https://pcvue.example.local"
-  insecure_skip_verify: false
+  base_url: "${PCVUE_BASE_URL}"
+  insecure_skip_verify: true
   timeout: "10s"
 
   auth:
     type: "oauth2_password"
-    token_url: "https://pcvue.example.local/OAuth/token"
+    token_url: "${PCVUE_TOKEN_URL}"
     client_id: "${PCVUE_CLIENT_ID}"
     client_secret: "${PCVUE_CLIENT_SECRET}"
     username: "${PCVUE_USERNAME}"
@@ -15,30 +15,11 @@ pcvue:
       - "RealtimeAlarm"
 
 labels:
-  site: "zurich"
+  site: "lausanne"
   environment: "prd"
 
 variables:
-  - name: "BMS.HVAC.TEMP_SUPPLY"
-    alias: "hvac_temp_supply"
-    area: "hvac"
+  - name: "SITE_A.TEMPERATURE.SENSOR_1.TEMPERATURE_VALUE"
+    alias: "site_a_sensor_1_temperature"
     type: "gauge"
-
-  - name: "BMS.UPS.BATTERY_LEVEL"
-    alias: "ups_battery_level"
-    area: "power"
-    type: "gauge"
-
-alarms:
-  aggregate: true
-
-  whitelist:
-    - id: "SCADA_LINK_DOWN"
-      pcvue_name: "SYSTEM.SCADA_LINK_DOWN"
-      severity: "critical"
-      area: "system"
-
-    - id: "UPS_BATTERY_FAULT"
-      pcvue_name: "POWER.UPS_BATTERY_FAULT"
-      severity: "critical"
-      area: "power"
+    area: "area_a"

@@ -1,11 +1,13 @@
 package pcvue
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -192,7 +194,7 @@ func (c *Client) ReadVariables(ctx context.Context, names []string) ([]VariableV
 		QualityValue float64 `json:"QualityValue"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
+	if err := decodePCVueJSON(resp.Body, &decoded); err != nil {
 		return nil, fmt.Errorf("decode variable bulk read response: %w", err)
 	}
 
@@ -246,9 +248,9 @@ func (c *Client) ReadActiveAlarms(ctx context.Context) ([]Alarm, error) {
 	query.Set("MaxLevel", "4")
 	query.Set("PriorityFilter", "All")
 
-	query.Add("Events", "AlarmOnNotAck")
-	query.Add("Events", "AlarmOnAck")
-	query.Add("Events", "AlarmUnavailable")
+	for index, event := range []string{"AlarmOnNotAck", "AlarmOnAck", "AlarmUnavailable"} {
+		query.Set(fmt.Sprintf("Events[%d]", index), event)
+	}
 
 	// Mapping provisoire basé sur l’exemple de réponse de la doc.
 	// À valider avec la section AlarmProperty du manuel PCVue.
@@ -285,7 +287,7 @@ func (c *Client) ReadActiveAlarms(ctx context.Context) ([]Alarm, error) {
 		MaxNumberExceeded bool `json:"maxNumberExceeded"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&decoded); err != nil {
+	if err := decodePCVueJSON(resp.Body, &decoded); err != nil {
 		return nil, fmt.Errorf("decode alarm values response: %w", err)
 	}
 	if decoded.MaxNumberExceeded {
@@ -338,6 +340,18 @@ func (c *Client) addAuthHeaders(req *http.Request) error {
 	token.SetAuthHeader(req)
 
 	return nil
+}
+
+func decodePCVueJSON(body io.Reader, target any) error {
+	reader := bufio.NewReader(body)
+	bom := []byte{0xef, 0xbb, 0xbf}
+	if prefix, err := reader.Peek(len(bom)); err == nil && bytes.Equal(prefix, bom) {
+		if _, err := reader.Discard(len(bom)); err != nil {
+			return err
+		}
+	}
+
+	return json.NewDecoder(reader).Decode(target)
 }
 
 func propertyAt(properties []string, index int) string {

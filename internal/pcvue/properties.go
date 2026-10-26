@@ -1,6 +1,7 @@
 package pcvue
 
 import (
+	"fmt"
 	"net/url"
 	"strconv"
 )
@@ -70,8 +71,45 @@ const (
 	VariablePropertyVariableType           VariableProperty = 54
 )
 
-// String returns the numeric identifier expected by the PCVue API.
+// String returns the property name expected by the PCVue variable API.
 func (p VariableProperty) String() string {
+	if p >= VariablePropertyTextAttr01 && p <= VariablePropertyTextAttr16 {
+		return fmt.Sprintf("TextAttr%02d", int(p)-int(VariablePropertyTextAttr01)+1)
+	}
+	if p >= VariablePropertyDeferredTextAttr03 && p <= VariablePropertyDeferredTextAttr16 {
+		return fmt.Sprintf("DeferredTextAttr%02d", int(p)-int(VariablePropertyDeferredTextAttr03)+3)
+	}
+
+	if name, ok := map[VariableProperty]string{
+		VariablePropertyVariableName:           "VariableName",
+		VariablePropertyDescription:            "Description",
+		VariablePropertyTimestampType:          "TimestampType",
+		VariablePropertyAssocLabel:             "AssocLabel",
+		VariablePropertyBinAttr:                "BinAttr",
+		VariablePropertyMinValue:               "MinValue",
+		VariablePropertyMaxValue:               "MaxValue",
+		VariablePropertyMinControlValue:        "MinControlValue",
+		VariablePropertyMaxControlValue:        "MaxControlValue",
+		VariablePropertyMinVariableName:        "MinVariableName",
+		VariablePropertyMaxVariableName:        "MaxVariableName",
+		VariablePropertyMinControlVariableName: "MinControlVariableName",
+		VariablePropertyMaxControlVariableName: "MaxControlVariableName",
+		VariablePropertyUnit:                   "Unit",
+		VariablePropertyFormat:                 "Format",
+		VariablePropertyAnim0AssocLabel:        "Anim0AssocLabel",
+		VariablePropertyAnim1AssocLabel:        "Anim1AssocLabel",
+		VariablePropertyCmd0AssocLabel:         "Cmd0AssocLabel",
+		VariablePropertyCmd1AssocLabel:         "Cmd1AssocLabel",
+		VariablePropertyLog0AssocLabel:         "Log0AssocLabel",
+		VariablePropertyLog1AssocLabel:         "Log1AssocLabel",
+		VariablePropertyFormattedValue:         "FormattedValue",
+		VariablePropertyAlarmLevel:             "AlarmLevel",
+		VariablePropertyMaintenance:            "Maintenance",
+		VariablePropertyVariableType:           "VariableType",
+	}[p]; ok {
+		return name
+	}
+
 	return strconv.Itoa(int(p))
 }
 
@@ -142,7 +180,7 @@ func variablePropertiesToStrings(properties ...VariableProperty) []string {
 }
 
 func addAlarmProperties(query url.Values, properties ...AlarmProperty) {
-	for _, property := range properties {
-		query.Add("Properties", property.String())
+	for index, property := range properties {
+		query.Set(fmt.Sprintf("Properties[%d]", index), property.String())
 	}
 }
