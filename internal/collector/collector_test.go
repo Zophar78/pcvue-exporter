@@ -94,8 +94,8 @@ func TestCollectVariablesEmitsValidValuesFromPartialRead(t *testing.T) {
 	cfg := &config.Config{
 		PCVue: config.PCVueConfig{Timeout: time.Second},
 		Variables: []config.VariableConfig{
-			{Name: "PUMP", Alias: "pump", Area: "plant-a"},
-			{Name: "BROKEN", Alias: "broken", Area: "plant-a"},
+			{Name: "PUMP", Area: "plant-a"},
+			{Name: "BROKEN", Area: "plant-a"},
 		},
 	}
 	collector := New(cfg, pcvueClient, slog.Default())
@@ -117,8 +117,10 @@ func TestCollectVariablesEmitsValidValuesFromPartialRead(t *testing.T) {
 	if got := dtoMetric.GetGauge().GetValue(); got != 12 {
 		t.Fatalf("emitted variable value = %v, want 12", got)
 	}
-	if labels := metricLabelMap(t, metric); labels["name"] != "PUMP" {
-		t.Fatalf("emitted metric labels = %v, want PUMP", labels)
+	if labels := metricLabelMap(t, metric); labels["name"] != "PUMP" || labels["area"] != "plant-a" {
+		t.Fatalf("emitted metric labels = %v, want name=PUMP and area=plant-a", labels)
+	} else if _, exists := labels["alias"]; exists {
+		t.Fatalf("emitted metric labels = %v, alias label should be absent", labels)
 	}
 }
 

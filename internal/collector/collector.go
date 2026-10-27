@@ -70,7 +70,7 @@ func New(cfg *config.Config, client *pcvue.Client, logger *slog.Logger) *Collect
 		variableValue: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "variable", "value"),
 			"Current PCVue variable value.",
-			[]string{"name", "alias", "area"},
+			[]string{"name", "area"},
 			commonLabels,
 		),
 
@@ -194,7 +194,6 @@ func (c *Collector) collectVariables(ctx context.Context, ch chan<- prometheus.M
 			prometheus.GaugeValue,
 			value.Value,
 			value.Name,
-			variableCfg.Alias,
 			variableCfg.Area,
 		)
 	}

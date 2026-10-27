@@ -20,6 +20,5 @@ labels:
 
 variables:
   - name: "SITE_A.TEMPERATURE.SENSOR_1.TEMPERATURE_VALUE"
-    alias: "site_a_sensor_1_temperature"
     type: "gauge"
     area: "area_a"
