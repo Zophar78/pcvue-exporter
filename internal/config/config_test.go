@@ -47,8 +47,8 @@ alarms:
 	if len(cfg.Variables) != 1 {
 		t.Fatalf("got %d variables, want 1", len(cfg.Variables))
 	}
-	if variable := cfg.Variables[0]; variable.Alias != "bms_pump_1" || variable.Area != "unknown" || variable.Type != "gauge" {
-		t.Errorf("variable defaults = %+v, want alias bms_pump_1, area unknown, type gauge", variable)
+	if variable := cfg.Variables[0]; variable.Area != "unknown" || variable.Type != "gauge" {
+		t.Errorf("variable defaults = %+v, want area unknown and type gauge", variable)
 	}
 	if len(cfg.Alarms.Whitelist) != 1 {
 		t.Fatalf("got %d whitelisted alarms, want 1", len(cfg.Alarms.Whitelist))
@@ -71,7 +71,7 @@ func TestLoadRejectsMissingRequiredFields(t *testing.T) {
 		},
 		{
 			name:    "variable name",
-			content: "pcvue:\n  base_url: http://pcvue\nvariables:\n  - alias: pump\n",
+			content: "pcvue:\n  base_url: http://pcvue\nvariables:\n  - area: plant-a\n",
 			wantErr: "variables[0].name is required",
 		},
 		{

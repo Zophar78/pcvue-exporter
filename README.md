@@ -23,7 +23,7 @@ Example metrics:
 ```text
 pcvue_up 1
 pcvue_scrape_duration_seconds 0.123
-pcvue_variable_value{name="BMS.UPS.BATTERY_LEVEL",alias="ups_battery_level",area="power"} 87
+pcvue_variable_value{name="BMS.UPS.BATTERY_LEVEL",area="power"} 87
 pcvue_alarm_active_total{severity="critical",assoc_label="power"} 2
 pcvue_alarm_unack_total{severity="critical",assoc_label="power"} 1
 pcvue_alarm_oldest_active_age_seconds 1840

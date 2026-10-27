@@ -39,10 +39,9 @@ type AuthConfig struct {
 
 // VariableConfig selects a PCVue variable and defines its Prometheus labels and type.
 type VariableConfig struct {
-	Name  string `yaml:"name"`
-	Alias string `yaml:"alias"`
-	Area  string `yaml:"area"`
-	Type  string `yaml:"type"`
+	Name string `yaml:"name"`
+	Area string `yaml:"area"`
+	Type string `yaml:"type"`
 }
 
 // AlarmConfig controls aggregate alarm metrics and the alarm whitelist.
@@ -102,10 +101,6 @@ func setDefaults(cfg *Config) {
 	}
 
 	for i := range cfg.Variables {
-		if cfg.Variables[i].Alias == "" {
-			cfg.Variables[i].Alias = sanitizeAlias(cfg.Variables[i].Name)
-		}
-
 		if cfg.Variables[i].Area == "" {
 			cfg.Variables[i].Area = "unknown"
 		}
@@ -148,13 +143,4 @@ func validate(cfg *Config) error {
 	}
 
 	return nil
-}
-
-func sanitizeAlias(value string) string {
-	value = strings.ToLower(value)
-	value = strings.ReplaceAll(value, ".", "_")
-	value = strings.ReplaceAll(value, "-", "_")
-	value = strings.ReplaceAll(value, " ", "_")
-
-	return value
 }

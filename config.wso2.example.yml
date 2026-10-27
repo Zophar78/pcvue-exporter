@@ -17,12 +17,10 @@ labels:
 
 variables:
   - name: "BMS.HVAC.TEMP_SUPPLY"
-    alias: "hvac_temp_supply"
     area: "hvac"
     type: "gauge"
 
   - name: "BMS.UPS.BATTERY_LEVEL"
-    alias: "ups_battery_level"
     area: "power"
     type: "gauge"
 
