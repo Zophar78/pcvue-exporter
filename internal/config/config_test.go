@@ -96,6 +96,58 @@ func TestLoadRejectsMissingRequiredFields(t *testing.T) {
 	}
 }
 
+func TestLoadRejectsDuplicateVariableNames(t *testing.T) {
+	tests := []struct {
+		name      string
+		variables string
+		wantErr   string
+	}{
+		{
+			name:      "same name",
+			variables: "  - name: PUMP\n  - name: PUMP\n",
+			wantErr:   `API name "PUMP" at variables[0] ("PUMP"), variables[1] ("PUMP")`,
+		},
+		{
+			name:      "same API name after path normalization",
+			variables: "  - name: PUMP/ROOM/TEMP\n  - name: PUMP.ROOM.TEMP\n",
+			wantErr:   `API name "PUMP.ROOM.TEMP" at variables[0] ("PUMP/ROOM/TEMP"), variables[1] ("PUMP.ROOM.TEMP")`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			content := "pcvue:\n  base_url: http://pcvue\nvariables:\n" + test.variables
+			_, err := Load(writeConfig(t, content))
+			if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+				t.Fatalf("Load() error = %v, want error containing %q", err, test.wantErr)
+			}
+		})
+	}
+}
+
+func TestLoadReportsAllDuplicateVariableNames(t *testing.T) {
+	content := `pcvue:
+  base_url: http://pcvue
+variables:
+  - name: PUMP
+  - name: PUMP/ROOM/TEMP
+  - name: FAN
+  - name: PUMP.ROOM.TEMP
+  - name: PUMP
+  - name: PUMP
+`
+
+	_, err := Load(writeConfig(t, content))
+	if err == nil {
+		t.Fatal("Load() error = nil, want duplicate variable names error")
+	}
+
+	wantErr := `duplicate PCVue variable names after normalizing '/' to '.': API name "PUMP" at variables[0] ("PUMP"), variables[4] ("PUMP"), variables[5] ("PUMP"); API name "PUMP.ROOM.TEMP" at variables[1] ("PUMP/ROOM/TEMP"), variables[3] ("PUMP.ROOM.TEMP")`
+	if err.Error() != wantErr {
+		t.Fatalf("Load() error = %q, want %q", err, wantErr)
+	}
+}
+
 func writeConfig(t *testing.T, content string) string {
 	t.Helper()
 

@@ -126,10 +126,34 @@ func validate(cfg *Config) error {
 		return fmt.Errorf("pcvue.base_url is required")
 	}
 
+	variableIndicesByAPIName := make(map[string][]int, len(cfg.Variables))
 	for i, variable := range cfg.Variables {
 		if variable.Name == "" {
 			return fmt.Errorf("variables[%d].name is required", i)
 		}
+
+		apiName := strings.ReplaceAll(variable.Name, "/", ".")
+		variableIndicesByAPIName[apiName] = append(variableIndicesByAPIName[apiName], i)
+	}
+
+	var duplicateNames []string
+	reportedAPIName := make(map[string]bool)
+	for _, variable := range cfg.Variables {
+		apiName := strings.ReplaceAll(variable.Name, "/", ".")
+		indices := variableIndicesByAPIName[apiName]
+		if len(indices) < 2 || reportedAPIName[apiName] {
+			continue
+		}
+
+		occurrences := make([]string, 0, len(indices))
+		for _, index := range indices {
+			occurrences = append(occurrences, fmt.Sprintf("variables[%d] (%q)", index, cfg.Variables[index].Name))
+		}
+		duplicateNames = append(duplicateNames, fmt.Sprintf("API name %q at %s", apiName, strings.Join(occurrences, ", ")))
+		reportedAPIName[apiName] = true
+	}
+	if len(duplicateNames) > 0 {
+		return fmt.Errorf("duplicate PCVue variable names after normalizing '/' to '.': %s", strings.Join(duplicateNames, "; "))
 	}
 
 	for i, alarm := range cfg.Alarms.Whitelist {
