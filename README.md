@@ -24,7 +24,6 @@ Example metrics:
 pcvue_up 1
 pcvue_scrape_duration_seconds 0.123
 pcvue_variable_value{name="BMS.UPS.BATTERY_LEVEL",alias="ups_battery_level",area="power"} 87
-pcvue_variable_quality{name="BMS.UPS.BATTERY_LEVEL",alias="ups_battery_level",area="power"} 192
 pcvue_alarm_active_total{severity="critical",assoc_label="power"} 2
 pcvue_alarm_unack_total{severity="critical",assoc_label="power"} 1
 pcvue_alarm_oldest_active_age_seconds 1840
@@ -160,6 +159,9 @@ python3 tools/explore_pcvue.py --list-variables --output pcvue-variables.json
 python3 tools/explore_pcvue.py --branch 'SITE_A/TEMPERATURE/SENSOR_1' \
   --output branch-variables.json
 
+# List only temperature variables for specific branch
+python3 tools/explore_pcvue.py --branch 'SITE_A/OFFICE' | jq '[.[] | select(.Label == "Temparature")]'
+
 # Show branch requests and traversal details
 python3 tools/explore_pcvue.py --branch 'SITE_A/TEMPERATURE/SENSOR_1' --debug
 ```
@@ -212,7 +214,7 @@ Build the image:
 docker build -t pcvue-exporter:local .
 ```
 
-The default Compose service connects directly to the WST API with the OAuth password grant. Provide the four credentials in the environment, then run:
+The default Compose service connects directly to the WST API with the OAuth password grant. Set `PCVUE_BASE_URL`, `PCVUE_TOKEN_URL`, and the four credentials in `.env` (Compose loads this file automatically), then run:
 
 ```bash
 export PCVUE_CLIENT_ID='your-client-id'

@@ -24,9 +24,7 @@ type Collector struct {
 	scrapeDurationSeconds *prometheus.Desc
 	scrapeErrorsTotal     *prometheus.Desc
 
-	variableValue            *prometheus.Desc
-	variableQuality          *prometheus.Desc
-	variableTimestampSeconds *prometheus.Desc
+	variableValue *prometheus.Desc
 
 	alarmActiveTotal       *prometheus.Desc
 	alarmUnackTotal        *prometheus.Desc
@@ -72,20 +70,6 @@ func New(cfg *config.Config, client *pcvue.Client, logger *slog.Logger) *Collect
 		variableValue: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "variable", "value"),
 			"Current PCVue variable value.",
-			[]string{"name", "alias", "area"},
-			commonLabels,
-		),
-
-		variableQuality: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "variable", "quality"),
-			"Current PCVue variable quality.",
-			[]string{"name", "alias", "area"},
-			commonLabels,
-		),
-
-		variableTimestampSeconds: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "variable", "timestamp_seconds"),
-			"Current PCVue variable timestamp as Unix time.",
 			[]string{"name", "alias", "area"},
 			commonLabels,
 		),
@@ -140,8 +124,6 @@ func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.scrapeDurationSeconds
 	ch <- c.scrapeErrorsTotal
 	ch <- c.variableValue
-	ch <- c.variableQuality
-	ch <- c.variableTimestampSeconds
 	ch <- c.alarmActiveTotal
 	ch <- c.alarmUnackTotal
 	ch <- c.alarmOldestActiveAge
@@ -203,9 +185,6 @@ func (c *Collector) collectVariables(ctx context.Context, ch chan<- prometheus.M
 	}
 
 	values, err := c.client.ReadVariables(ctx, names)
-	if err != nil {
-		return err
-	}
 
 	for _, value := range values {
 		variableCfg := variableConfigByName[value.Name]
@@ -218,29 +197,9 @@ func (c *Collector) collectVariables(ctx context.Context, ch chan<- prometheus.M
 			variableCfg.Alias,
 			variableCfg.Area,
 		)
-
-		ch <- prometheus.MustNewConstMetric(
-			c.variableQuality,
-			prometheus.GaugeValue,
-			value.Quality,
-			value.Name,
-			variableCfg.Alias,
-			variableCfg.Area,
-		)
-
-		if !value.Timestamp.IsZero() {
-			ch <- prometheus.MustNewConstMetric(
-				c.variableTimestampSeconds,
-				prometheus.GaugeValue,
-				float64(value.Timestamp.Unix()),
-				value.Name,
-				variableCfg.Alias,
-				variableCfg.Area,
-			)
-		}
 	}
 
-	return nil
+	return err
 }
 
 func (c *Collector) collectAlarms(ctx context.Context, ch chan<- prometheus.Metric) error {

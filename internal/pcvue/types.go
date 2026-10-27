@@ -3,12 +3,10 @@ package pcvue
 
 import "time"
 
-// VariableValue contains a PCVue variable's value, quality, and optional timestamp.
+// VariableValue contains a PCVue variable's current value.
 type VariableValue struct {
-	Name      string
-	Value     float64
-	Quality   float64
-	Timestamp time.Time
+	Name  string
+	Value float64
 }
 
 // Alarm contains the state and properties returned for a PCVue alarm event.
