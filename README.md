@@ -172,6 +172,11 @@ close the WST session. It does not call that endpoint with
 `oauth2_client_credentials`. Use `--config path/to/config.yml` to select
 another configuration file.
 
+The exporter also handles `SIGINT` and `SIGTERM` by stopping its HTTP server
+gracefully. With `oauth2_password`, it then calls the same PCVue logout endpoint
+using the cached access token. No logout request is sent with
+`oauth2_client_credentials`.
+
 
 ## Running locally
 ```bash
