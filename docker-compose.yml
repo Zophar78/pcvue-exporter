@@ -12,7 +12,7 @@ x-exporter-defaults: &exporter-defaults
   restart: unless-stopped
   command:
     - "--config.file=/config/config.yml"
-    - "--log.level=info"
+    - "--log.level=${PCVUE_EXPORTER_LOG_LEVEL:-info}"
     - "--log.format=json"
 
 services:
@@ -22,6 +22,8 @@ services:
     ports:
       - "9718:9718"
     environment:
+      PCVUE_BASE_URL: ${PCVUE_BASE_URL:-}
+      PCVUE_TOKEN_URL: ${PCVUE_TOKEN_URL:-}
       PCVUE_CLIENT_ID: ${PCVUE_CLIENT_ID:-}
       PCVUE_CLIENT_SECRET: ${PCVUE_CLIENT_SECRET:-}
       PCVUE_USERNAME: ${PCVUE_USERNAME:-}
@@ -36,6 +38,8 @@ services:
     ports:
       - "9720:9718"
     environment:
+      PCVUE_WSO2_BASE_URL: ${PCVUE_WSO2_BASE_URL:-}
+      PCVUE_WSO2_TOKEN_URL: ${PCVUE_WSO2_TOKEN_URL:-}
       PCVUE_CLIENT_ID: ${PCVUE_CLIENT_ID:-}
       PCVUE_CLIENT_SECRET: ${PCVUE_CLIENT_SECRET:-}
     volumes:

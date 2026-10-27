@@ -92,7 +92,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	client, err := pcvue.NewClient(cfg.PCVue)
+	client, err := pcvue.NewClient(cfg.PCVue, logger)
 	if err != nil {
 		logger.Error("failed to create PCVue client", "error", err)
 		os.Exit(1)
@@ -139,7 +139,7 @@ func main() {
 
 	logger.Info(
 		"starting pcvue exporter",
-		"listen_address", *webListenAddress,	
+		"listen_address", *webListenAddress,
 		"metrics_path", *webMetricsPath,
 		"config_file", *configFile,
 	)

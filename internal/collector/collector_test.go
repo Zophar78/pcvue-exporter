@@ -1,8 +1,12 @@
 package collector
 
 import (
+	"io"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -54,6 +58,67 @@ func TestAlarmAggregateMetricsUseAssocLabel(t *testing.T) {
 		if _, exists := labels["area"]; exists {
 			t.Error("aggregate metric should not expose assoc_label as area")
 		}
+	}
+}
+
+func TestCollectVariablesEmitsValidValuesFromPartialRead(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/token":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"access_token":"test-token","token_type":"Bearer","expires_in":3600}`)
+		case "/RealTimeData/v2/BulkRead":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusMultiStatus)
+			_, _ = io.WriteString(w, `[{"Description":"PUMP","value":12},{"Description":"BROKEN","result":{"code":{"value":5,"label":"E_Failed"}}}]`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+
+	pcvueClient, err := pcvue.NewClient(config.PCVueConfig{
+		BaseURL: server.URL,
+		Timeout: time.Second,
+		Auth: config.AuthConfig{
+			Type:         "oauth2_client_credentials",
+			TokenURL:     server.URL + "/token",
+			ClientID:     "test-client",
+			ClientSecret: "test-secret",
+		},
+	}, slog.Default())
+	if err != nil {
+		t.Fatalf("create PCVue client: %v", err)
+	}
+
+	cfg := &config.Config{
+		PCVue: config.PCVueConfig{Timeout: time.Second},
+		Variables: []config.VariableConfig{
+			{Name: "PUMP", Alias: "pump", Area: "plant-a"},
+			{Name: "BROKEN", Alias: "broken", Area: "plant-a"},
+		},
+	}
+	collector := New(cfg, pcvueClient, slog.Default())
+	metrics := make(chan prometheus.Metric, len(cfg.Variables))
+
+	err = collector.collectVariables(t.Context(), metrics)
+	if err == nil {
+		t.Fatal("collectVariables() error = nil, want partial-read error")
+	}
+	if len(metrics) != 1 {
+		t.Fatalf("collectVariables() emitted %d metrics, want valid metric only", len(metrics))
+	}
+
+	metric := <-metrics
+	var dtoMetric dto.Metric
+	if err := metric.Write(&dtoMetric); err != nil {
+		t.Fatalf("write metric: %v", err)
+	}
+	if got := dtoMetric.GetGauge().GetValue(); got != 12 {
+		t.Fatalf("emitted variable value = %v, want 12", got)
+	}
+	if labels := metricLabelMap(t, metric); labels["name"] != "PUMP" {
+		t.Fatalf("emitted metric labels = %v, want PUMP", labels)
 	}
 }
 
