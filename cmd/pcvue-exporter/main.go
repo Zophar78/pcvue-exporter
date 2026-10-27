@@ -2,10 +2,14 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"os"
+	"os/signal"
 	"runtime"
+	"syscall"
 	"time"
 
 	"github.com/Zophar78/pcvue-exporter/internal/collector"
@@ -57,6 +61,41 @@ func newLandingPage() (http.Handler, error) {
 			{Address: "/healthz", Text: "Healthz"},
 		},
 	})
+}
+
+func serveUntilShutdown(ctx context.Context, server *http.Server, logout func(context.Context) error) error {
+	serverErrors := make(chan error, 1)
+	go func() {
+		serverErrors <- server.ListenAndServe()
+	}()
+
+	var shutdownErr error
+	select {
+	case err := <-serverErrors:
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			shutdownErr = err
+		}
+	case <-ctx.Done():
+	}
+
+	shutdownCtx, cancelShutdown := context.WithTimeout(context.Background(), 5*time.Second)
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		shutdownErr = errors.Join(shutdownErr, err)
+		if closeErr := server.Close(); closeErr != nil {
+			shutdownErr = errors.Join(shutdownErr, closeErr)
+		}
+	}
+	cancelShutdown()
+
+	logoutCtx, cancelLogout := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelLogout()
+	if logout != nil {
+		if err := logout(logoutCtx); err != nil {
+			shutdownErr = errors.Join(shutdownErr, err)
+		}
+	}
+
+	return shutdownErr
 }
 
 func main() {
@@ -152,8 +191,11 @@ func main() {
 		IdleTimeout:       2 * time.Minute,
 	}
 
-	if err := server.ListenAndServe(); err != nil {
-		logger.Error("server failed", "error", err)
+	shutdownCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	if err := serveUntilShutdown(shutdownCtx, server, client.Logout); err != nil {
+		logger.Error("server shutdown failed", "error", err)
 		os.Exit(1)
 	}
+	logger.Info("pcvue exporter stopped")
 }

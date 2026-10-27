@@ -10,6 +10,7 @@ x-exporter-defaults: &exporter-defaults
       BUILD_USER: ${BUILD_USER:-docker}
   image: pcvue-exporter:local
   restart: unless-stopped
+  stop_grace_period: 15s
   command:
     - "--config.file=/config/config.yml"
     - "--log.level=${PCVUE_EXPORTER_LOG_LEVEL:-info}"

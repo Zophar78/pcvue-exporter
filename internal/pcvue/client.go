@@ -30,6 +30,7 @@ const (
 
 type Client struct {
 	baseURL string
+	authType string
 
 	httpClient  *http.Client
 	tokenSource *cachedTokenSource
@@ -58,6 +59,7 @@ func NewClient(cfg config.PCVueConfig, logger *slog.Logger) (*Client, error) {
 
 	return &Client{
 		baseURL:     baseURL,
+		authType:    cfg.Auth.Type,
 		httpClient:  httpClient,
 		tokenSource: tokenSource,
 		logger:      logger,
@@ -91,6 +93,39 @@ func (c *Client) do(req *http.Request) (*http.Response, error) {
 	}
 
 	return resp, err
+}
+
+// Logout closes the PCVue session for password-grant authentication.
+func (c *Client) Logout(ctx context.Context) error {
+	if c.authType != authTypeOAuth2Password {
+		return nil
+	}
+
+	accessToken := c.tokenSource.cachedAccessToken()
+	if accessToken == "" {
+		return nil
+	}
+
+	url := c.baseURL + "/OAuth/Account/logout"
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("create PCVue logout request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+
+	resp, err := c.do(req)
+	if err != nil {
+		return fmt.Errorf("execute PCVue logout request: %w", err)
+	}
+	defer func() {
+		_ = resp.Body.Close()
+	}()
+
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return fmt.Errorf("PCVue logout failed: status=%d", resp.StatusCode)
+	}
+
+	return nil
 }
 
 func newTokenSource(cfg config.PCVueConfig, httpClient *http.Client, logger *slog.Logger) (*cachedTokenSource, error) {
@@ -205,6 +240,17 @@ func (s *cachedTokenSource) invalidate(token *oauth2.Token) {
 	if s.token != nil && token != nil && s.token.AccessToken == token.AccessToken {
 		s.token = nil
 	}
+}
+
+func (s *cachedTokenSource) cachedAccessToken() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if s.token == nil {
+		return ""
+	}
+
+	return s.token.AccessToken
 }
 
 type clientCredentialsTokenSource struct {

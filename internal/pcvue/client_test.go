@@ -56,6 +56,68 @@ func TestReadActiveAlarmsRejectsTruncatedResponse(t *testing.T) {
 	}
 }
 
+func TestLogoutClosesCachedPasswordGrantSession(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		if r.Method != http.MethodGet || r.URL.Path != "/OAuth/Account/logout" {
+			t.Errorf("logout request = %s %s, want GET /OAuth/Account/logout", r.Method, r.URL.Path)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer cached-token" {
+			t.Errorf("Authorization = %q, want cached bearer token", got)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	client := &Client{
+		baseURL:    server.URL,
+		authType:   authTypeOAuth2Password,
+		httpClient: server.Client(),
+		tokenSource: newCachedTokenSource(oauth2.StaticTokenSource(&oauth2.Token{
+			AccessToken: "cached-token",
+		}), nil),
+	}
+	if _, err := client.tokenSource.Token(); err != nil {
+		t.Fatalf("Token() error = %v", err)
+	}
+
+	if err := client.Logout(t.Context()); err != nil {
+		t.Fatalf("Logout() error = %v", err)
+	}
+	if requests != 1 {
+		t.Fatalf("logout requests = %d, want 1", requests)
+	}
+}
+
+func TestLogoutDoesNotAcquireTokenOrCloseClientCredentialsSession(t *testing.T) {
+	requests := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests++
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	for _, authType := range []string{authTypeOAuth2Password, authTypeOAuth2ClientCredentials} {
+		client := &Client{
+			baseURL:    server.URL,
+			authType:   authType,
+			httpClient: server.Client(),
+			tokenSource: newCachedTokenSource(oauth2.StaticTokenSource(&oauth2.Token{
+				AccessToken: "not-cached-until-requested",
+			}), nil),
+		}
+
+		if err := client.Logout(t.Context()); err != nil {
+			t.Fatalf("Logout() for %s error = %v", authType, err)
+		}
+	}
+
+	if requests != 0 {
+		t.Fatalf("logout requests = %d, want 0", requests)
+	}
+}
+
 func TestPasswordTokenSourceLogsExpiryWithoutExposingToken(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
