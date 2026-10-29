@@ -1,5 +1,5 @@
 # Build
-FROM golang:alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:alpine AS builder
 
 # Add ca-certs
 RUN apk add --update --no-cache ca-certificates
@@ -15,10 +15,11 @@ ARG REVISION=unknown
 ARG BRANCH=unknown
 ARG BUILD_DATE=unknown
 ARG BUILD_USER=docker
+ARG TARGETOS
+ARG TARGETARCH
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go mod download && \
-    go build \
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} \
+  go build \
       -trimpath \
       -ldflags "\
         -s -w \
