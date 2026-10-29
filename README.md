@@ -35,6 +35,10 @@ Alarm aggregate metrics use `assoc_label`, read from the PCVue alarm properties.
 
 ## Authentication
 
+The exporter requires access to the PCVue WST REST API. Using this API requires
+a valid PCVue license; the exporter does not include the API or provide a
+license.
+
 The exporter supports two OAuth2 authentication modes:
 
 - `oauth2_password`: direct authentication against the PCVue REST API.
@@ -218,6 +222,8 @@ Build the image:
 ```bash
 docker build -t pcvue-exporter:local .
 ```
+
+Release tags publish images for `linux/amd64` and `linux/arm64`.
 
 The default Compose service connects directly to the WST API with the OAuth password grant. Set `PCVUE_BASE_URL`, `PCVUE_TOKEN_URL`, and the four credentials in `.env` (Compose loads this file automatically), then run:
 
