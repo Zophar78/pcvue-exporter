@@ -37,11 +37,10 @@ type AuthConfig struct {
 	Scopes       []string `yaml:"scopes"`
 }
 
-// VariableConfig selects a PCVue variable and defines its Prometheus labels and type.
+// VariableConfig selects a PCVue variable and defines its Prometheus labels.
 type VariableConfig struct {
 	Name string `yaml:"name"`
 	Area string `yaml:"area"`
-	Type string `yaml:"type"`
 }
 
 // AlarmConfig controls aggregate alarm metrics.
@@ -117,9 +116,6 @@ func setDefaults(cfg *Config) {
 			cfg.Variables[i].Area = "unknown"
 		}
 
-		if cfg.Variables[i].Type == "" {
-			cfg.Variables[i].Type = "gauge"
-		}
 	}
 
 }

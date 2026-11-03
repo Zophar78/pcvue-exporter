@@ -25,8 +25,8 @@ pcvue_scrape_duration_seconds 0.123
 pcvue_scrape_errors_total{type="variables"} 0
 pcvue_scrape_errors_total{type="alarms"} 0
 pcvue_variable_value{name="BMS.UPS.BATTERY_LEVEL",area="power"} 87
-pcvue_alarm_active_total{severity="critical",assoc_label="power"} 2
-pcvue_alarm_unack_total{severity="critical",assoc_label="power"} 1
+pcvue_alarm_active{severity="3",assoc_label="on - acknowledged"} 2
+pcvue_alarm_unacknowledged{severity="0",assoc_label="on - not acknowledged"} 1
 pcvue_alarm_oldest_active_age_seconds 1840
 pcvue_exporter_build_info{version="0.0.1",revision="...",branch="main",build_date="...",build_user="...",goversion="..."} 1
 ```
@@ -43,13 +43,16 @@ read fails and returns to one when both succeed.
 
 The exporter reads PCVue alarms only to calculate aggregate statistics:
 
-- `pcvue_alarm_active_total`: current number of active alarms by `severity` and `assoc_label`.
-- `pcvue_alarm_unack_total`: current number of active unacknowledged alarms by the same labels.
+- `pcvue_alarm_active`: current number of active alarms by `severity` and `assoc_label`.
+- `pcvue_alarm_unacknowledged`: current number of active unacknowledged alarms by the same labels.
 - `pcvue_alarm_oldest_active_age_seconds`: age of the oldest active alarm.
 
-These metrics are gauges, including those whose existing names end in `_total`.
-The grouped count series are emitted only for groups with a positive count;
-queries must account for absent series when no alarms match a group.
+`severity` is the value of PCVue's `AlarmLevel` property, copied as a string;
+the exporter does not map numeric levels to names such as `critical`. Use the
+exact values and association labels returned by your PCVue instance.
+
+The grouped count series are emitted only when their count is positive. Queries
+must account for an absent series when no alarms match a group.
 
 Alarm aggregates are enabled by default. Set `aggregate: false` to disable alarm
 collection entirely, including the PCVue alarm API request:
@@ -66,8 +69,7 @@ Define monitoring alerts in Prometheus using the scraped variable values,
 with Alertmanager handling notification routing. PCVue retains its own
 operational alarms and acknowledgement.
 
-The alarm configuration contains only `alarms.aggregate`; `alarms.whitelist`
-is not accepted.
+`alarms.whitelist` is not accepted.
 
 ## Tests
 

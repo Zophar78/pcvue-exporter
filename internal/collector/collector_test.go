@@ -220,7 +220,7 @@ func TestCollectExposesOnlyAlarmAggregates(t *testing.T) {
 	c.Describe(descriptors)
 	close(descriptors)
 	for desc := range descriptors {
-		for _, removed := range []string{"pcvue_alarm_active", "pcvue_alarm_unack", "pcvue_alarm_age_seconds"} {
+		for _, removed := range []string{"pcvue_alarm_active_total", "pcvue_alarm_unack_total", "pcvue_alarm_age_seconds"} {
 			if strings.Contains(desc.String(), `fqName: "`+removed+`"`) {
 				t.Errorf("removed alarm metric is still described: %s", desc)
 			}
@@ -233,39 +233,50 @@ func TestCollectExposesOnlyAlarmAggregates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("gather metrics: %v", err)
 	}
-	wantValues := map[string]float64{
-		"pcvue_alarm_active_total":              2,
-		"pcvue_alarm_unack_total":               1,
-		"pcvue_alarm_oldest_active_age_seconds": 0,
+	wantValues := map[string]map[string]float64{
+		"pcvue_alarm_active": {
+			"3\xffplant-a": 2,
+		},
+		"pcvue_alarm_unacknowledged": {
+			"3\xffplant-a": 1,
+		},
+		"pcvue_alarm_oldest_active_age_seconds": {"": 0},
 	}
 	for _, family := range families {
 		if !strings.HasPrefix(family.GetName(), "pcvue_alarm_") {
 			continue
 		}
-		want, exists := wantValues[family.GetName()]
+		expectedMetrics, exists := wantValues[family.GetName()]
 		if !exists {
 			t.Errorf("unexpected alarm metric %s", family.GetName())
 			continue
 		}
 		delete(wantValues, family.GetName())
-		if family.GetType() != dto.MetricType_GAUGE || len(family.GetMetric()) != 1 {
-			t.Errorf("%s should contain one gauge", family.GetName())
+		if family.GetType() != dto.MetricType_GAUGE || len(family.GetMetric()) != len(expectedMetrics) {
+			t.Errorf("%s should contain %d gauges, got %d", family.GetName(), len(expectedMetrics), len(family.GetMetric()))
 			continue
 		}
-		metric := family.GetMetric()[0]
-		if got := metric.GetGauge().GetValue(); got != want {
-			t.Errorf("%s = %v, want %v", family.GetName(), got, want)
-		}
-		labels := map[string]string{}
-		for _, label := range metric.GetLabel() {
-			labels[label.GetName()] = label.GetValue()
-		}
-		if family.GetName() == "pcvue_alarm_oldest_active_age_seconds" {
-			if len(labels) != 0 {
-				t.Errorf("oldest age labels = %v, want none", labels)
+		for _, metric := range family.GetMetric() {
+			labels := map[string]string{}
+			for _, label := range metric.GetLabel() {
+				labels[label.GetName()] = label.GetValue()
 			}
-		} else if len(labels) != 2 || labels["severity"] != "3" || labels["assoc_label"] != "plant-a" {
-			t.Errorf("aggregate labels = %v, want severity=3 and assoc_label=plant-a", labels)
+			key := ""
+			if family.GetName() != "pcvue_alarm_oldest_active_age_seconds" {
+				key = labels["severity"] + "\xff" + labels["assoc_label"]
+			}
+			want, exists := expectedMetrics[key]
+			if !exists {
+				t.Errorf("%s has unexpected labels %v", family.GetName(), labels)
+				continue
+			}
+			delete(expectedMetrics, key)
+			if got := metric.GetGauge().GetValue(); got != want {
+				t.Errorf("%s%v = %v, want %v", family.GetName(), labels, got, want)
+			}
+		}
+		if len(expectedMetrics) > 0 {
+			t.Errorf("%s missing label combinations: %v", family.GetName(), expectedMetrics)
 		}
 	}
 	if len(wantValues) != 0 {

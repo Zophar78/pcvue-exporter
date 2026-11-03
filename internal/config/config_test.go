@@ -43,8 +43,8 @@ variables:
 	if len(cfg.Variables) != 1 {
 		t.Fatalf("got %d variables, want 1", len(cfg.Variables))
 	}
-	if variable := cfg.Variables[0]; variable.Area != "unknown" || variable.Type != "gauge" {
-		t.Errorf("variable defaults = %+v, want area unknown and type gauge", variable)
+	if variable := cfg.Variables[0]; variable.Area != "unknown" {
+		t.Errorf("variable area = %q, want unknown", variable.Area)
 	}
 	if !cfg.Alarms.Aggregate {
 		t.Error("alarm aggregates should be enabled by default")

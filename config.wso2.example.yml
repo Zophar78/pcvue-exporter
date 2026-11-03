@@ -18,11 +18,9 @@ labels:
 variables:
   - name: "BMS.HVAC.TEMP_SUPPLY"
     area: "hvac"
-    type: "gauge"
 
   - name: "BMS.UPS.BATTERY_LEVEL"
     area: "power"
-    type: "gauge"
 
 alarms:
   aggregate: true
