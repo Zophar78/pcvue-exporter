@@ -44,18 +44,23 @@ type VariableConfig struct {
 	Type string `yaml:"type"`
 }
 
-// AlarmConfig controls aggregate alarm metrics and the alarm whitelist.
+// AlarmConfig controls aggregate alarm metrics.
 type AlarmConfig struct {
-	Aggregate bool          `yaml:"aggregate"`
-	Whitelist []AlarmFilter `yaml:"whitelist"`
+	Aggregate bool `yaml:"aggregate"`
 }
 
-// AlarmFilter identifies a PCVue alarm and its Prometheus labels.
-type AlarmFilter struct {
-	ID        string `yaml:"id"`
-	PCVueName string `yaml:"pcvue_name"`
-	Severity  string `yaml:"severity"`
-	Area      string `yaml:"area"`
+// UnmarshalYAML rejects the removed individual alarm configuration.
+func (c *AlarmConfig) UnmarshalYAML(value *yaml.Node) error {
+	if value.Kind == yaml.MappingNode {
+		for i := 0; i < len(value.Content); i += 2 {
+			if value.Content[i].Value == "whitelist" {
+				return fmt.Errorf("alarms.whitelist is no longer supported; remove it and define alerting rules from exported variable metrics")
+			}
+		}
+	}
+
+	type plainAlarmConfig AlarmConfig
+	return value.Decode((*plainAlarmConfig)(c))
 }
 
 // Load reads a YAML configuration file, expands environment variables, applies defaults,
@@ -110,15 +115,6 @@ func setDefaults(cfg *Config) {
 		}
 	}
 
-	for i := range cfg.Alarms.Whitelist {
-		if cfg.Alarms.Whitelist[i].Area == "" {
-			cfg.Alarms.Whitelist[i].Area = "unknown"
-		}
-
-		if cfg.Alarms.Whitelist[i].Severity == "" {
-			cfg.Alarms.Whitelist[i].Severity = "unknown"
-		}
-	}
 }
 
 func validate(cfg *Config) error {
@@ -154,16 +150,6 @@ func validate(cfg *Config) error {
 	}
 	if len(duplicateNames) > 0 {
 		return fmt.Errorf("duplicate PCVue variable names after normalizing '/' to '.': %s", strings.Join(duplicateNames, "; "))
-	}
-
-	for i, alarm := range cfg.Alarms.Whitelist {
-		if alarm.ID == "" {
-			return fmt.Errorf("alarms.whitelist[%d].id is required", i)
-		}
-
-		if alarm.PCVueName == "" {
-			return fmt.Errorf("alarms.whitelist[%d].pcvue_name is required", i)
-		}
 	}
 
 	return nil
