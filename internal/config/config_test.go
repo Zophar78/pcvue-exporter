@@ -51,6 +51,29 @@ variables:
 	}
 }
 
+func TestLoadAlarmAggregateSetting(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		alarms      string
+		wantEnabled bool
+	}{
+		{name: "missing defaults to enabled", wantEnabled: true},
+		{name: "explicit true stays enabled", alarms: "alarms:\n  aggregate: true\n", wantEnabled: true},
+		{name: "explicit false stays disabled", alarms: "alarms:\n  aggregate: false\n"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			content := "pcvue:\n  base_url: http://pcvue\n" + test.alarms
+			cfg, err := Load(writeConfig(t, content))
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if cfg.Alarms.Aggregate != test.wantEnabled {
+				t.Errorf("Aggregate = %t, want %t", cfg.Alarms.Aggregate, test.wantEnabled)
+			}
+		})
+	}
+}
+
 func TestLoadRejectsMissingRequiredFields(t *testing.T) {
 	tests := []struct {
 		name    string

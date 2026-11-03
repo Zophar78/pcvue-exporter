@@ -170,14 +170,16 @@ func (c *Collector) collectVariables(ctx context.Context, ch chan<- prometheus.M
 }
 
 func (c *Collector) collectAlarms(ctx context.Context, ch chan<- prometheus.Metric) error {
+	if !c.cfg.Alarms.Aggregate {
+		return nil
+	}
+
 	alarms, err := c.client.ReadActiveAlarms(ctx)
 	if err != nil {
 		return err
 	}
 
-	if c.cfg.Alarms.Aggregate {
-		c.collectAlarmAggregates(ch, alarms)
-	}
+	c.collectAlarmAggregates(ch, alarms)
 
 	return nil
 }

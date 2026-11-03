@@ -51,11 +51,12 @@ These metrics are gauges, including those whose existing names end in `_total`.
 The grouped count series are emitted only for groups with a positive count;
 queries must account for absent series when no alarms match a group.
 
-Configure aggregates in either API configuration:
+Alarm aggregates are enabled by default. Set `aggregate: false` to disable alarm
+collection entirely, including the PCVue alarm API request:
 
 ```yaml
 alarms:
-  aggregate: true
+  aggregate: false
 ```
 
 The current scope is to expose alarm aggregates, not a list of individual
