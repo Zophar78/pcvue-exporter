@@ -26,8 +26,8 @@ type Collector struct {
 
 	variableValue *prometheus.Desc
 
-	alarmActiveTotal     *prometheus.Desc
-	alarmUnackTotal      *prometheus.Desc
+	alarmActive          *prometheus.Desc
+	alarmUnacknowledged  *prometheus.Desc
 	alarmOldestActiveAge *prometheus.Desc
 }
 
@@ -75,15 +75,15 @@ func New(cfg *config.Config, client *pcvue.Client, logger *slog.Logger) *Collect
 			commonLabels,
 		),
 
-		alarmActiveTotal: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "alarm", "active_total"),
+		alarmActive: prometheus.NewDesc(
+			prometheus.BuildFQName(namespace, "alarm", "active"),
 			"Number of active PCVue alarms.",
 			[]string{"severity", "assoc_label"},
 			commonLabels,
 		),
 
-		alarmUnackTotal: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "alarm", "unack_total"),
+		alarmUnacknowledged: prometheus.NewDesc(
+			prometheus.BuildFQName(namespace, "alarm", "unacknowledged"),
 			"Number of active unacknowledged PCVue alarms.",
 			[]string{"severity", "assoc_label"},
 			commonLabels,
@@ -104,8 +104,8 @@ func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.scrapeDurationSeconds
 	c.scrapeErrorsTotal.Describe(ch)
 	ch <- c.variableValue
-	ch <- c.alarmActiveTotal
-	ch <- c.alarmUnackTotal
+	ch <- c.alarmActive
+	ch <- c.alarmUnacknowledged
 	ch <- c.alarmOldestActiveAge
 }
 
@@ -187,8 +187,8 @@ func (c *Collector) collectAlarms(ctx context.Context, ch chan<- prometheus.Metr
 func (c *Collector) collectAlarmAggregates(ch chan<- prometheus.Metric, alarms []pcvue.Alarm) {
 	now := time.Now()
 
-	activeBySeverityAssocLabel := map[string]float64{}
-	unackBySeverityAssocLabel := map[string]float64{}
+	activeByGroup := map[alarmGroup]float64{}
+	unackByGroup := map[alarmGroup]float64{}
 
 	var oldestAge float64
 
@@ -199,12 +199,12 @@ func (c *Collector) collectAlarmAggregates(ch chan<- prometheus.Metric, alarms [
 
 		severity := normalizeLabelValue(alarm.Severity)
 		assocLabel := normalizeLabelValue(alarm.AssocLabel)
-		key := severity + "\xff" + assocLabel
+		group := alarmGroup{severity: severity, assocLabel: assocLabel}
 
-		activeBySeverityAssocLabel[key]++
+		activeByGroup[group]++
 
 		if !alarm.Acknowledged {
-			unackBySeverityAssocLabel[key]++
+			unackByGroup[group]++
 		}
 
 		if !alarm.Timestamp.IsZero() {
@@ -215,25 +215,23 @@ func (c *Collector) collectAlarmAggregates(ch chan<- prometheus.Metric, alarms [
 		}
 	}
 
-	for key, value := range activeBySeverityAssocLabel {
-		parts := strings.Split(key, "\xff")
+	for group, value := range activeByGroup {
 		ch <- prometheus.MustNewConstMetric(
-			c.alarmActiveTotal,
+			c.alarmActive,
 			prometheus.GaugeValue,
 			value,
-			parts[0],
-			parts[1],
+			group.severity,
+			group.assocLabel,
 		)
 	}
 
-	for key, value := range unackBySeverityAssocLabel {
-		parts := strings.Split(key, "\xff")
+	for group, value := range unackByGroup {
 		ch <- prometheus.MustNewConstMetric(
-			c.alarmUnackTotal,
+			c.alarmUnacknowledged,
 			prometheus.GaugeValue,
 			value,
-			parts[0],
-			parts[1],
+			group.severity,
+			group.assocLabel,
 		)
 	}
 
@@ -242,6 +240,11 @@ func (c *Collector) collectAlarmAggregates(ch chan<- prometheus.Metric, alarms [
 		prometheus.GaugeValue,
 		oldestAge,
 	)
+}
+
+type alarmGroup struct {
+	severity   string
+	assocLabel string
 }
 
 func normalizeLabelValue(value string) string {
