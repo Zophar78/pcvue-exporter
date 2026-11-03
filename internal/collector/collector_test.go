@@ -55,6 +55,7 @@ func TestCollectAccumulatesScrapeErrors(t *testing.T) {
 			},
 		},
 		Variables: []config.VariableConfig{{Name: "PUMP"}, {Name: "FAN"}},
+		Alarms:    config.AlarmConfig{Aggregate: true},
 		Labels:    map[string]string{"site": "test"},
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
@@ -167,6 +168,16 @@ func TestAlarmAggregateMetricsUseAssocLabel(t *testing.T) {
 		if _, exists := labels["area"]; exists {
 			t.Error("aggregate metric should not expose assoc_label as area")
 		}
+	}
+}
+
+func TestCollectAlarmsSkipsPCVueRequestWhenAggregatesDisabled(t *testing.T) {
+	c := New(&config.Config{
+		Alarms: config.AlarmConfig{Aggregate: false},
+	}, nil, slog.Default())
+
+	if err := c.collectAlarms(t.Context(), make(chan prometheus.Metric, 1)); err != nil {
+		t.Fatalf("collectAlarms() error = %v, want nil when aggregates are disabled", err)
 	}
 }
 

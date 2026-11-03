@@ -46,21 +46,30 @@ type VariableConfig struct {
 
 // AlarmConfig controls aggregate alarm metrics.
 type AlarmConfig struct {
-	Aggregate bool `yaml:"aggregate"`
+	Aggregate    bool `yaml:"aggregate"`
+	aggregateSet bool
 }
 
 // UnmarshalYAML rejects the removed individual alarm configuration.
 func (c *AlarmConfig) UnmarshalYAML(value *yaml.Node) error {
+	aggregateSet := false
 	if value.Kind == yaml.MappingNode {
 		for i := 0; i < len(value.Content); i += 2 {
-			if value.Content[i].Value == "whitelist" {
+			switch value.Content[i].Value {
+			case "whitelist":
 				return fmt.Errorf("alarms.whitelist is no longer supported; remove it and define alerting rules from exported variable metrics")
+			case "aggregate":
+				aggregateSet = true
 			}
 		}
 	}
 
 	type plainAlarmConfig AlarmConfig
-	return value.Decode((*plainAlarmConfig)(c))
+	if err := value.Decode((*plainAlarmConfig)(c)); err != nil {
+		return err
+	}
+	c.aggregateSet = aggregateSet
+	return nil
 }
 
 // Load reads a YAML configuration file, expands environment variables, applies defaults,
@@ -99,9 +108,7 @@ func setDefaults(cfg *Config) {
 		cfg.Labels = map[string]string{}
 	}
 
-	// Par défaut, on active les agrégats d’alarmes.
-	// Si tu veux rendre ça strictement explicite dans le YAML, supprime cette ligne.
-	if !cfg.Alarms.Aggregate {
+	if !cfg.Alarms.aggregateSet {
 		cfg.Alarms.Aggregate = true
 	}
 
