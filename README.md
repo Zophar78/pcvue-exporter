@@ -1,8 +1,8 @@
 # pcvue-exporter
 
-Prometheus exporter for **PCVue** variables, metrics and alarms.
+Prometheus exporter for **PCVue** variables and alarm aggregates.
 
-This exporter exposes selected PCVue real-time variables and alarm states as Prometheus metrics.
+This exporter exposes selected PCVue real-time variables and aggregate alarm statistics as Prometheus metrics.
 
 ## Features
 
@@ -12,7 +12,6 @@ This exporter exposes selected PCVue real-time variables and alarm states as Pro
 - Supports environment variable expansion in the YAML config
 - Exposes selected PCVue variables as metrics
 - Exposes PCVue alarm aggregates
-- Supports whitelisted alarm metrics
 - Exposes build information through Prometheus metrics
 - Uses Prometheus-style CLI flags with `kingpin`
 - Uses Prometheus `promslog` logging
@@ -23,15 +22,65 @@ Example metrics:
 ```text
 pcvue_up 1
 pcvue_scrape_duration_seconds 0.123
+pcvue_scrape_errors_total{type="variables"} 0
+pcvue_scrape_errors_total{type="alarms"} 0
 pcvue_variable_value{name="BMS.UPS.BATTERY_LEVEL",area="power"} 87
 pcvue_alarm_active_total{severity="critical",assoc_label="power"} 2
 pcvue_alarm_unack_total{severity="critical",assoc_label="power"} 1
 pcvue_alarm_oldest_active_age_seconds 1840
-pcvue_alarm_active{alarm_id="UPS_BATTERY_FAULT",pcvue_name="POWER.UPS_BATTERY_FAULT",severity="critical",area="power"} 1
 pcvue_exporter_build_info{version="0.0.1",revision="...",branch="main",build_date="...",build_user="...",goversion="..."} 1
 ```
 
-Alarm aggregate metrics use `assoc_label`, read from the PCVue alarm properties. Whitelisted alarm metrics use `area`, configured per alarm in `alarms.whitelist`.
+Alarm aggregate metrics use `assoc_label`, read from the PCVue alarm properties.
+
+`pcvue_scrape_errors_total` counts failed reads separately for `variables` and
+`alarms`, incrementing once per failed read during each scrape, not per invalid
+variable or alarm. Both series start at zero, remain exposed after successful
+scrapes, and reset when the exporter restarts. `pcvue_up` remains zero if either
+read fails and returns to one when both succeed.
+
+### Alarm monitoring
+
+The exporter reads PCVue alarms only to calculate aggregate statistics:
+
+- `pcvue_alarm_active_total`: current number of active alarms by `severity` and `assoc_label`.
+- `pcvue_alarm_unack_total`: current number of active unacknowledged alarms by the same labels.
+- `pcvue_alarm_oldest_active_age_seconds`: age of the oldest active alarm.
+
+These metrics are gauges, including those whose existing names end in `_total`.
+The grouped count series are emitted only for groups with a positive count;
+queries must account for absent series when no alarms match a group.
+
+Configure aggregates in either API configuration:
+
+```yaml
+alarms:
+  aggregate: true
+```
+
+The current scope is to expose alarm aggregates, not a list of individual
+alarms: aggregate statistics provide a metric view of PCVue's alarm activity,
+while the alarm list belongs to operational alarm management.
+Define monitoring alerts in Prometheus using the scraped variable values,
+with Alertmanager handling notification routing. PCVue retains its own
+operational alarms and acknowledgement.
+
+The alarm configuration contains only `alarms.aggregate`; `alarms.whitelist`
+is not accepted.
+
+## Tests
+
+Build the exporter and run tests:
+
+```bash
+go build ./...
+go test -cover ./...
+```
+
+The command tests check default and explicit CLI flags, reject invalid flags,
+and load a temporary YAML configuration to initialize the PCVue client.
+They run without starting the exporter or contacting PCVue. CI also runs
+`go build ./...` to verify compilation.
 
 ## Authentication
 

@@ -21,10 +21,6 @@ labels:
   site: "lab"
 variables:
   - name: "BMS.PUMP-1"
-alarms:
-  whitelist:
-    - id: "PUMP_ALARM"
-      pcvue_name: "BMS.PUMP_ALARM"
 `)
 
 	cfg, err := Load(path)
@@ -50,11 +46,8 @@ alarms:
 	if variable := cfg.Variables[0]; variable.Area != "unknown" || variable.Type != "gauge" {
 		t.Errorf("variable defaults = %+v, want area unknown and type gauge", variable)
 	}
-	if len(cfg.Alarms.Whitelist) != 1 {
-		t.Fatalf("got %d whitelisted alarms, want 1", len(cfg.Alarms.Whitelist))
-	}
-	if alarm := cfg.Alarms.Whitelist[0]; alarm.Area != "unknown" || alarm.Severity != "unknown" {
-		t.Errorf("alarm defaults = %+v, want area and severity unknown", alarm)
+	if !cfg.Alarms.Aggregate {
+		t.Error("alarm aggregates should be enabled by default")
 	}
 }
 
@@ -74,16 +67,6 @@ func TestLoadRejectsMissingRequiredFields(t *testing.T) {
 			content: "pcvue:\n  base_url: http://pcvue\nvariables:\n  - area: plant-a\n",
 			wantErr: "variables[0].name is required",
 		},
-		{
-			name:    "alarm ID",
-			content: "pcvue:\n  base_url: http://pcvue\nalarms:\n  whitelist:\n    - pcvue_name: PUMP.ALARM\n",
-			wantErr: "alarms.whitelist[0].id is required",
-		},
-		{
-			name:    "PCVue alarm name",
-			content: "pcvue:\n  base_url: http://pcvue\nalarms:\n  whitelist:\n    - id: PUMP_ALARM\n",
-			wantErr: "alarms.whitelist[0].pcvue_name is required",
-		},
 	}
 
 	for _, test := range tests {
@@ -91,6 +74,41 @@ func TestLoadRejectsMissingRequiredFields(t *testing.T) {
 			_, err := Load(writeConfig(t, test.content))
 			if err == nil || !strings.Contains(err.Error(), test.wantErr) {
 				t.Fatalf("Load() error = %v, want error containing %q", err, test.wantErr)
+			}
+		})
+	}
+}
+
+func TestLoadRejectsRemovedAlarmWhitelist(t *testing.T) {
+	for _, test := range []struct {
+		name      string
+		whitelist string
+	}{
+		{name: "configured alarms", whitelist: "\n    - id: PUMP_ALARM\n      pcvue_name: PUMP.ALARM\n"},
+		{name: "empty list", whitelist: " []\n"},
+		{name: "null", whitelist: " null\n"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			content := "pcvue:\n  base_url: http://pcvue\nalarms:\n  aggregate: true\n  whitelist:" + test.whitelist
+			_, err := Load(writeConfig(t, content))
+			if err == nil || !strings.Contains(err.Error(), "alarms.whitelist is no longer supported") {
+				t.Fatalf("Load() error = %v, want removed whitelist error", err)
+			}
+		})
+	}
+}
+
+func TestLoadExampleConfigs(t *testing.T) {
+	t.Setenv("PCVUE_BASE_URL", "https://pcvue.example.local")
+	t.Setenv("PCVUE_WSO2_BASE_URL", "https://wso2.example.local/pcvue")
+	for _, name := range []string{"config.api.example.yml", "config.wso2.example.yml"} {
+		t.Run(name, func(t *testing.T) {
+			cfg, err := Load(filepath.Join("..", "..", name))
+			if err != nil {
+				t.Fatalf("Load() error = %v", err)
+			}
+			if !cfg.Alarms.Aggregate {
+				t.Error("example should enable alarm aggregates")
 			}
 		})
 	}

@@ -22,3 +22,6 @@ variables:
   - name: "SITE_A.TEMPERATURE.SENSOR_1.TEMPERATURE_VALUE"
     type: "gauge"
     area: "area_a"
+
+alarms:
+  aggregate: true

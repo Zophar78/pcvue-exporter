@@ -1,4 +1,4 @@
-// Package collector exposes configured PCVue values and alarms as Prometheus metrics.
+// Package collector exposes configured PCVue values and alarm aggregates as Prometheus metrics.
 package collector
 
 import (
@@ -22,16 +22,13 @@ type Collector struct {
 
 	up                    *prometheus.Desc
 	scrapeDurationSeconds *prometheus.Desc
-	scrapeErrorsTotal     *prometheus.Desc
+	scrapeErrorsTotal     *prometheus.CounterVec
 
 	variableValue *prometheus.Desc
 
-	alarmActiveTotal       *prometheus.Desc
-	alarmUnackTotal        *prometheus.Desc
-	alarmOldestActiveAge   *prometheus.Desc
-	alarmWhitelistedActive *prometheus.Desc
-	alarmWhitelistedUnack  *prometheus.Desc
-	alarmWhitelistedAge    *prometheus.Desc
+	alarmActiveTotal     *prometheus.Desc
+	alarmUnackTotal      *prometheus.Desc
+	alarmOldestActiveAge *prometheus.Desc
 }
 
 // New creates a collector using the supplied configuration, PCVue client, and logger.
@@ -40,6 +37,15 @@ func New(cfg *config.Config, client *pcvue.Client, logger *slog.Logger) *Collect
 
 	commonLabels := prometheus.Labels{}
 	maps.Copy(commonLabels, cfg.Labels)
+
+	scrapeErrorsTotal := prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace:   namespace,
+		Name:        "scrape_errors_total",
+		Help:        "Number of PCVue scrape errors.",
+		ConstLabels: commonLabels,
+	}, []string{"type"})
+	scrapeErrorsTotal.WithLabelValues("variables")
+	scrapeErrorsTotal.WithLabelValues("alarms")
 
 	return &Collector{
 		cfg:    cfg,
@@ -60,12 +66,7 @@ func New(cfg *config.Config, client *pcvue.Client, logger *slog.Logger) *Collect
 			commonLabels,
 		),
 
-		scrapeErrorsTotal: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "", "scrape_errors_total"),
-			"Number of PCVue scrape errors.",
-			[]string{"type"},
-			commonLabels,
-		),
+		scrapeErrorsTotal: scrapeErrorsTotal,
 
 		variableValue: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "variable", "value"),
@@ -94,27 +95,6 @@ func New(cfg *config.Config, client *pcvue.Client, logger *slog.Logger) *Collect
 			nil,
 			commonLabels,
 		),
-
-		alarmWhitelistedActive: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "alarm", "active"),
-			"Whether a whitelisted PCVue alarm is active.",
-			[]string{"alarm_id", "pcvue_name", "severity", "area"},
-			commonLabels,
-		),
-
-		alarmWhitelistedUnack: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "alarm", "unack"),
-			"Whether a whitelisted PCVue alarm is active and unacknowledged.",
-			[]string{"alarm_id", "pcvue_name", "severity", "area"},
-			commonLabels,
-		),
-
-		alarmWhitelistedAge: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "alarm", "age_seconds"),
-			"Age of a whitelisted active PCVue alarm in seconds.",
-			[]string{"alarm_id", "pcvue_name", "severity", "area"},
-			commonLabels,
-		),
 	}
 }
 
@@ -122,18 +102,15 @@ func New(cfg *config.Config, client *pcvue.Client, logger *slog.Logger) *Collect
 func (c *Collector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- c.up
 	ch <- c.scrapeDurationSeconds
-	ch <- c.scrapeErrorsTotal
+	c.scrapeErrorsTotal.Describe(ch)
 	ch <- c.variableValue
 	ch <- c.alarmActiveTotal
 	ch <- c.alarmUnackTotal
 	ch <- c.alarmOldestActiveAge
-	ch <- c.alarmWhitelistedActive
-	ch <- c.alarmWhitelistedUnack
-	ch <- c.alarmWhitelistedAge
 }
 
 // Collect fetches configured PCVue data and sends the resulting metrics to ch.
-// A failed variable or alarm read sets pcvue_up to 0 and emits a scrape error metric.
+// A failed variable or alarm read sets pcvue_up to 0 and increments its scrape error counter.
 func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	start := time.Now()
 	ctx, cancel := context.WithTimeout(context.Background(), c.cfg.PCVue.Timeout)
@@ -144,25 +121,16 @@ func (c *Collector) Collect(ch chan<- prometheus.Metric) {
 	if err := c.collectVariables(ctx, ch); err != nil {
 		ok = 0
 		c.logger.Error("failed to collect PCVue variables", "error", err)
-		ch <- prometheus.MustNewConstMetric(
-			c.scrapeErrorsTotal,
-			prometheus.CounterValue,
-			1,
-			"variables",
-		)
+		c.scrapeErrorsTotal.WithLabelValues("variables").Inc()
 	}
 
 	if err := c.collectAlarms(ctx, ch); err != nil {
 		ok = 0
 		c.logger.Error("failed to collect PCVue alarms", "error", err)
-		ch <- prometheus.MustNewConstMetric(
-			c.scrapeErrorsTotal,
-			prometheus.CounterValue,
-			1,
-			"alarms",
-		)
+		c.scrapeErrorsTotal.WithLabelValues("alarms").Inc()
 	}
 
+	c.scrapeErrorsTotal.Collect(ch)
 	ch <- prometheus.MustNewConstMetric(c.up, prometheus.GaugeValue, ok)
 	ch <- prometheus.MustNewConstMetric(
 		c.scrapeDurationSeconds,
@@ -210,8 +178,6 @@ func (c *Collector) collectAlarms(ctx context.Context, ch chan<- prometheus.Metr
 	if c.cfg.Alarms.Aggregate {
 		c.collectAlarmAggregates(ch, alarms)
 	}
-
-	c.collectWhitelistedAlarms(ch, alarms)
 
 	return nil
 }
@@ -274,63 +240,6 @@ func (c *Collector) collectAlarmAggregates(ch chan<- prometheus.Metric, alarms [
 		prometheus.GaugeValue,
 		oldestAge,
 	)
-}
-
-func (c *Collector) collectWhitelistedAlarms(ch chan<- prometheus.Metric, alarms []pcvue.Alarm) {
-	now := time.Now()
-
-	alarmByName := map[string]pcvue.Alarm{}
-	for _, alarm := range alarms {
-		alarmByName[alarm.Name] = alarm
-	}
-
-	for _, expected := range c.cfg.Alarms.Whitelist {
-		alarm, found := alarmByName[expected.PCVueName]
-
-		active := 0.0
-		unack := 0.0
-		age := 0.0
-
-		if found && alarm.Active {
-			active = 1
-			if !alarm.Acknowledged {
-				unack = 1
-			}
-			if !alarm.Timestamp.IsZero() {
-				age = now.Sub(alarm.Timestamp).Seconds()
-			}
-		}
-
-		ch <- prometheus.MustNewConstMetric(
-			c.alarmWhitelistedActive,
-			prometheus.GaugeValue,
-			active,
-			expected.ID,
-			expected.PCVueName,
-			expected.Severity,
-			expected.Area,
-		)
-
-		ch <- prometheus.MustNewConstMetric(
-			c.alarmWhitelistedUnack,
-			prometheus.GaugeValue,
-			unack,
-			expected.ID,
-			expected.PCVueName,
-			expected.Severity,
-			expected.Area,
-		)
-
-		ch <- prometheus.MustNewConstMetric(
-			c.alarmWhitelistedAge,
-			prometheus.GaugeValue,
-			age,
-			expected.ID,
-			expected.PCVueName,
-			expected.Severity,
-			expected.Area,
-		)
-	}
 }
 
 func normalizeLabelValue(value string) string {

@@ -98,34 +98,46 @@ func serveUntilShutdown(ctx context.Context, server *http.Server, logout func(co
 	return shutdownErr
 }
 
-func main() {
+type commandOptions struct {
+	configFile       string
+	webListenAddress string
+	webMetricsPath   string
+	logging          promslog.Config
+}
+
+func newApplication() (*kingpin.Application, *commandOptions) {
 	app := kingpin.New(name, description)
 	app.HelpFlag.Short('h')
+	options := &commandOptions{}
 
-	configFile := app.Flag(
+	app.Flag(
 		"config.file",
 		"Path to the exporter configuration file.",
-	).Default("config.yml").String()
+	).Default("config.yml").StringVar(&options.configFile)
 
-	webListenAddress := app.Flag(
+	app.Flag(
 		"web.listen-address",
 		"Address on which to expose metrics and web interface.",
-	).Default(":9718").String()
+	).Default(":9718").StringVar(&options.webListenAddress)
 
-	webMetricsPath := app.Flag(
+	app.Flag(
 		"web.metrics-path",
 		"Path under which to expose Prometheus metrics.",
-	).Default("/metrics").String()
+	).Default("/metrics").StringVar(&options.webMetricsPath)
 
-	promslogConfig := &promslog.Config{}
-	promslogflag.AddFlags(app, promslogConfig)
+	promslogflag.AddFlags(app, &options.logging)
 
 	app.Version(version.Print(name))
+	return app, options
+}
+
+func main() {
+	app, options := newApplication()
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 
-	logger := promslog.New(promslogConfig)
+	logger := promslog.New(&options.logging)
 
-	cfg, err := config.Load(*configFile)
+	cfg, err := config.Load(options.configFile)
 	if err != nil {
 		logger.Error("failed to load config", "error", err)
 		os.Exit(1)
@@ -154,7 +166,7 @@ func main() {
 	}
 	mux.Handle("/", landingPage)
 
-	mux.Handle(*webMetricsPath, promhttp.HandlerFor(
+	mux.Handle(options.webMetricsPath, promhttp.HandlerFor(
 		registry,
 		promhttp.HandlerOpts{
 			EnableOpenMetrics: true,
@@ -178,13 +190,13 @@ func main() {
 
 	logger.Info(
 		"starting pcvue exporter",
-		"listen_address", *webListenAddress,
-		"metrics_path", *webMetricsPath,
-		"config_file", *configFile,
+		"listen_address", options.webListenAddress,
+		"metrics_path", options.webMetricsPath,
+		"config_file", options.configFile,
 	)
 
 	server := &http.Server{
-		Addr:              *webListenAddress,
+		Addr:              options.webListenAddress,
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
 		WriteTimeout:      cfg.PCVue.Timeout + 5*time.Second,
