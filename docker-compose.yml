@@ -11,6 +11,12 @@ x-exporter-defaults: &exporter-defaults
   image: pcvue-exporter:local
   restart: unless-stopped
   stop_grace_period: 15s
+  healthcheck:
+    test: ["CMD", "/pcvue-exporter", "healthcheck"]
+    interval: 30s
+    timeout: 3s
+    retries: 3
+    start_period: 5s
   command:
     - "--config.file=/config/config.yml"
     - "--log.level=${PCVUE_EXPORTER_LOG_LEVEL:-info}"

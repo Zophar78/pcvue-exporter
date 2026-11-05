@@ -80,10 +80,9 @@ go build ./...
 go test -cover ./...
 ```
 
-The command tests check default and explicit CLI flags, reject invalid flags,
-and load a temporary YAML configuration to initialize the PCVue client.
-They run without starting the exporter or contacting PCVue. CI also runs
-`go build ./...` to verify compilation.
+The command tests cover CLI flags, the process health endpoint, and the
+healthcheck command. They use local test servers and do not contact PCVue.
+CI also runs `go build ./...` to verify compilation.
 
 ## Authentication
 
@@ -276,6 +275,15 @@ docker build -t pcvue-exporter:local .
 ```
 
 Release tags publish images for `linux/amd64` and `linux/arm64`.
+
+The image healthcheck runs `pcvue-exporter healthcheck` against
+`http://127.0.0.1:9718/healthz`. It checks only the exporter HTTP server:
+PCVue outages are reported through metrics such as `pcvue_up`, not Docker
+health. It uses the default listen port, `9718`, regardless of the host port
+used to publish the container port.
+
+The check connects over IPv4 loopback, so the exporter must listen on
+`127.0.0.1` or an address that includes it, such as `0.0.0.0`.
 
 The default Compose service connects directly to the WST API with the OAuth password grant. Set `PCVUE_BASE_URL`, `PCVUE_TOKEN_URL`, and the four credentials in `.env` (Compose loads this file automatically), then run:
 

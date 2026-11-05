@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -131,9 +133,49 @@ func newApplication() (*kingpin.Application, *commandOptions) {
 	return app, options
 }
 
+func checkHealth(url string) error {
+	client := &http.Client{
+		Timeout: 2 * time.Second,
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+	response, err := client.Get(url)
+	if err != nil {
+		return err
+	}
+	if err := response.Body.Close(); err != nil {
+		return fmt.Errorf("close health response: %w", err)
+	}
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("health endpoint returned %s", response.Status)
+	}
+	return nil
+}
+
 func main() {
 	app, options := newApplication()
-	kingpin.MustParse(app.Parse(os.Args[1:]))
+	args := os.Args[1:]
+	healthcheckCommand := len(args) > 0 && args[0] == "healthcheck"
+	if healthcheckCommand {
+		args = args[1:]
+	}
+	kingpin.MustParse(app.Parse(args))
+
+	if healthcheckCommand {
+		_, port, err := net.SplitHostPort(options.webListenAddress)
+		if err == nil {
+			url := "http://" + net.JoinHostPort("127.0.0.1", port) + "/healthz"
+			err = checkHealth(url)
+		} else {
+			err = fmt.Errorf("invalid listen address: %w", err)
+		}
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "healthcheck failed:", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	logger := promslog.New(&options.logging)
 
