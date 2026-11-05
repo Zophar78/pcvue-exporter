@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"gopkg.in/yaml.v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // Config contains the complete exporter configuration.
@@ -83,7 +83,7 @@ func Load(path string) (*Config, error) {
 	expanded := os.ExpandEnv(string(raw))
 
 	var cfg Config
-	if err := yaml.Unmarshal([]byte(expanded), &cfg); err != nil {
+	if err := yaml.Load([]byte(expanded), &cfg); err != nil {
 		return nil, fmt.Errorf("parse config file: %w", err)
 	}
 
