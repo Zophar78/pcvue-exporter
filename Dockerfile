@@ -37,5 +37,8 @@ COPY --from=builder /out/pcvue-exporter /pcvue-exporter
 
 EXPOSE 9718
 
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+  CMD ["/pcvue-exporter", "healthcheck"]
+
 ENTRYPOINT ["/pcvue-exporter"]
 CMD ["--config.file=/config/config.yml", "--web.listen-address=0.0.0.0:9718"]
