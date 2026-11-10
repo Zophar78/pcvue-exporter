@@ -199,3 +199,51 @@ func writeConfig(t *testing.T, content string) string {
 
 	return path
 }
+
+func TestLoadSecretFiles(t *testing.T) {
+	for _, tc := range []struct{ name, fileValue, configured, want, wantError string }{
+		{name: "exact bytes", fileValue: "  value:$#  ", want: "  value:$#  "},
+		{name: "newline", fileValue: "secret\n", want: "secret"},
+		{name: "windows newline", fileValue: "secret\r\n", want: "secret"},
+		{name: "empty", fileValue: "\n", wantError: "empty secret"},
+		{name: "conflicting value", fileValue: "secret", configured: "inline", wantError: "cannot be used with a configured credential"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, field := range []struct {
+				env, yaml string
+				get       func(*Config) string
+			}{
+				{"PCVUE_CLIENT_SECRET_FILE", "client_secret", func(c *Config) string { return c.PCVue.Auth.ClientSecret }},
+				{"PCVUE_PASSWORD_FILE", "password", func(c *Config) string { return c.PCVue.Auth.Password }},
+			} {
+				t.Run(field.yaml, func(t *testing.T) {
+					path := filepath.Join(t.TempDir(), "secret")
+					if err := os.WriteFile(path, []byte(tc.fileValue), 0600); err != nil {
+						t.Fatal(err)
+					}
+					t.Setenv(field.env, path)
+					cfg, err := Load(writeConfig(t, "pcvue:\n  base_url: http://pcvue\n  auth:\n    "+field.yaml+": "+tc.configured+"\n"))
+					if tc.wantError != "" {
+						if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+							t.Fatalf("error = %v", err)
+						}
+						return
+					}
+					if err != nil {
+						t.Fatal(err)
+					}
+					if got := field.get(cfg); got != tc.want {
+						t.Errorf("secret = %q, want %q", got, tc.want)
+					}
+				})
+			}
+		})
+	}
+	t.Run("missing file", func(t *testing.T) {
+		t.Setenv("PCVUE_PASSWORD_FILE", filepath.Join(t.TempDir(), "missing"))
+		_, err := Load(writeConfig(t, "pcvue:\n  base_url: http://pcvue\n"))
+		if err == nil || !strings.Contains(err.Error(), "PCVUE_PASSWORD_FILE") {
+			t.Fatalf("error = %v", err)
+		}
+	})
+}

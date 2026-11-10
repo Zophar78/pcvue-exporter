@@ -87,6 +87,10 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("parse config file: %w", err)
 	}
 
+	if err := loadSecretFiles(&cfg.PCVue.Auth); err != nil {
+		return nil, err
+	}
+
 	setDefaults(&cfg)
 
 	if err := validate(&cfg); err != nil {
@@ -94,6 +98,40 @@ func Load(path string) (*Config, error) {
 	}
 
 	return &cfg, nil
+}
+
+// loadSecretFiles resolves Docker-style secret file variables after parsing YAML,
+// so secret contents are never interpreted as YAML or expanded as environment variables.
+func loadSecretFiles(auth *AuthConfig) error {
+	for _, secret := range []struct {
+		env   string
+		value *string
+	}{
+		{"PCVUE_CLIENT_SECRET_FILE", &auth.ClientSecret},
+		{"PCVUE_PASSWORD_FILE", &auth.Password},
+	} {
+		path := os.Getenv(secret.env)
+		if path == "" {
+			continue
+		}
+		if *secret.value != "" {
+			return fmt.Errorf("%s cannot be used with a configured credential value", secret.env)
+		}
+		contents, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("read %s: %w", secret.env, err)
+		}
+		value := string(contents)
+		if strings.HasSuffix(value, "\n") {
+			value = strings.TrimSuffix(value, "\n")
+			value = strings.TrimSuffix(value, "\r")
+		}
+		if value == "" {
+			return fmt.Errorf("%s points to an empty secret", secret.env)
+		}
+		*secret.value = value
+	}
+	return nil
 }
 
 func setDefaults(cfg *Config) {
