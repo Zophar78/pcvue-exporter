@@ -283,6 +283,16 @@ go build \
   ./cmd/pcvue-exporter
 ```
 
+## Reverse proxy with a URL prefix
+
+When exposing the exporter under a prefix such as `https://example.com/pcvue/`,
+configure the proxy to strip `/pcvue` before forwarding requests to the
+exporter. The landing page uses relative links, including the configured
+`--web.metrics-path`, so they retain the external prefix. The proxy should
+redirect `/pcvue` to `/pcvue/`: the trailing slash is necessary for browsers
+to resolve relative links under the prefix. For example, route `/pcvue/metrics`
+to the exporter's `/metrics` and `/pcvue/healthz` to `/healthz`.
+
 ## Docker
 Build the image:
 ```bash

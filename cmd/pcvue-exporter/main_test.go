@@ -2,10 +2,14 @@ package main
 
 import (
 	"context"
+	"io"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -118,6 +122,71 @@ func TestApplicationRejectsInvalidFlags(t *testing.T) {
 			_, err := app.Parse(test.args)
 			if err == nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("parse flags error = %v, want %q", err, test.want)
+			}
+		})
+	}
+}
+
+// TestLandingPageProxy verifies the browser-visible links through a proxy that
+// strips its external prefix, including a configured nested metrics path.
+func TestLandingPageProxy(t *testing.T) {
+	for _, tc := range []struct{ name, prefix, metricsPath string }{
+		{"root", "", "/metrics"},
+		{"prefixed", "/pcvue", "/metrics"},
+		{"custom metrics", "/pcvue", "/custom/metrics"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			landing, err := newLandingPage(tc.metricsPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			mux := http.NewServeMux()
+			mux.Handle("/", landing)
+			mux.HandleFunc(tc.metricsPath, func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("metrics endpoint")) })
+			mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("health endpoint")) })
+			handler := http.Handler(mux)
+			if tc.prefix != "" {
+				handler = http.StripPrefix(tc.prefix, handler)
+			}
+			server := httptest.NewServer(handler)
+			defer server.Close()
+			pageURL := server.URL + tc.prefix + "/"
+			response, err := http.Get(pageURL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			body, err := io.ReadAll(response.Body)
+			response.Body.Close()
+			if err != nil || response.StatusCode != http.StatusOK {
+				t.Fatalf("landing page: status %d, error %v", response.StatusCode, err)
+			}
+			base, _ := url.Parse(pageURL)
+			for _, link := range []struct{ text, path, body string }{
+				{"Metrics", tc.metricsPath, "metrics endpoint"},
+				{"Healthz", "/healthz", "health endpoint"},
+			} {
+				pattern := regexp.MustCompile(`href="([^"]+)"[^>]*>` + link.text + `</a>`)
+				match := pattern.FindSubmatch(body)
+				if match == nil {
+					t.Fatalf("link %s missing from page: %s", link.text, body)
+				}
+				target, err := url.Parse(string(match[1]))
+				if err != nil {
+					t.Fatal(err)
+				}
+				resolved := base.ResolveReference(target)
+				if resolved.Path != tc.prefix+link.path {
+					t.Fatalf("%s resolved to %q, want %q", link.text, resolved.Path, tc.prefix+link.path)
+				}
+				got, err := http.Get(resolved.String())
+				if err != nil {
+					t.Fatal(err)
+				}
+				content, err := io.ReadAll(got.Body)
+				got.Body.Close()
+				if err != nil || got.StatusCode != http.StatusOK || string(content) != link.body {
+					t.Fatalf("%s endpoint: status %d, body %q, error %v", link.text, got.StatusCode, content, err)
+				}
 			}
 		})
 	}
