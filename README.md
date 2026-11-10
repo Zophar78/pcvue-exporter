@@ -1,8 +1,23 @@
-# pcvue-exporter
+# PCVue Prometheus Exporter
 
-Prometheus exporter for **PCVue** variables and alarm aggregates.
+**Open-source Prometheus exporter for PCVue SCADA systems.**
 
-This exporter exposes selected PCVue real-time variables and aggregate alarm statistics as Prometheus metrics.
+PCVue Prometheus Exporter connects PCVue industrial supervision to the Prometheus monitoring ecosystem. It reads selected real-time variables and aggregate alarm statistics through the PCVue WST REST API and exposes them as Prometheus metrics.
+
+Use the metrics to monitor industrial processes, visualize PCVue data in Grafana, track active and unacknowledged alarms, and create alerts in Prometheus and Alertmanager.
+
+**Technologies:** PCVue, SCADA, Prometheus, Grafana, Go, REST API, OAuth2 and Docker.
+
+> This independent open-source project requires access to a properly licensed PCVue WST REST API. It is not affiliated with PcVue Solutions.
+
+## Documentation
+
+- [Features](#features) and [example metrics](#metrics)
+- [Authentication and prerequisites](#authentication)
+- [Run locally](#running-locally) or [with Docker](#docker)
+- [Explore PCVue variables](#exploring-pcvue-variables)
+- [Build and test](#tests)
+
 
 ## Features
 
