@@ -7,3 +7,5 @@ pcvue-exporter
 dist/
 tmp/
 .env
+
+secrets/

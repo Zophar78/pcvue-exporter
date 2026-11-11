@@ -121,8 +121,8 @@ environment variables so environment-specific hostnames are not committed.
 | WSO2 API base URL | `PCVUE_WSO2_BASE_URL` | `https://wso2.example.local/pcvue` |
 | WSO2 token URL | `PCVUE_WSO2_TOKEN_URL` | `https://wso2.example.local/oauth2/token` |
 
-Copy `.env.example` to `.env` and replace the example URLs and credentials with
-your local values. The `.env` file is ignored by Git. To load it into the
+Copy `.env.example` to `.env` and replace the example URLs, client ID and username
+with your local values. The `.env` file is ignored by Git. To load it into the
 current shell before running the exporter or the exploration script:
 
 ```bash
@@ -130,6 +130,21 @@ set -a
 source .env
 set +a
 ```
+
+### Secret files
+
+The exporter accepts `PCVUE_CLIENT_SECRET_FILE` and `PCVUE_PASSWORD_FILE` as
+paths to files containing the respective credentials. For Docker secrets these
+are normally `/run/secrets/pcvue_client_secret` and `/run/secrets/pcvue_password`.
+A single trailing newline (LF or CRLF) is removed; other characters are preserved.
+The exporter reads the files at startup: restart it after rotating a secret.
+It fails on unreadable or empty files and if a file is configured alongside a
+nonempty value for the same credential in YAML. Existing `client_secret` and
+`password` configuration values, including environment expansion, remain supported.
+
+These `_FILE` variables apply to the exporter, not `tools/explore_pcvue.py`.
+For that script, provide the credentials via its YAML configuration or the
+existing `PCVUE_CLIENT_SECRET` and `PCVUE_PASSWORD` variables.
 
 ### PCVue direct authentication
 
@@ -205,8 +220,8 @@ The `tools/explore_pcvue.py` script uses the PCVue settings in
 - List every variable recursively with `--list-variables`; this can take a long time.
 - List variables recursively below a selected branch with `--branch`.
 
-Install the script dependency and export the credentials from the project `.env`
-file into the current shell:
+Install the script dependency, set the credentials as described above, and load
+the remaining settings from `.env` into the current shell:
 
 ```bash
 python3 -m pip install -r tools/requirements.txt
@@ -256,7 +271,8 @@ go build -o pcvue-exporter ./cmd/pcvue-exporter
 
 Run the exporter:
 ```bash
-PCVUE_PASSWORD='your-password' ./pcvue-exporter \
+PCVUE_CLIENT_SECRET_FILE="$PWD/secrets/pcvue_client_secret" \
+PCVUE_PASSWORD_FILE="$PWD/secrets/pcvue_password" ./pcvue-exporter \
   --config.file=config.yml \
   --web.listen-address=0.0.0.0:9718 \
   --web.metrics-path=/metrics \
@@ -310,15 +326,28 @@ used to publish the container port.
 The check connects over IPv4 loopback, so the exporter must listen on
 `127.0.0.1` or an address that includes it, such as `0.0.0.0`.
 
-The default Compose service connects directly to the WST API with the OAuth password grant. Set `PCVUE_BASE_URL`, `PCVUE_TOKEN_URL`, and the four credentials in `.env` (Compose loads this file automatically), then run:
+The default Compose service connects directly to the WST API with the OAuth
+password grant. Copy `.env.example` to `.env`, and set the direct API URLs,
+client ID and username. Then create the two secret files outside Git. For example,
+this Bash snippet prompts without echoing or putting their values in shell history:
 
 ```bash
-export PCVUE_CLIENT_ID='your-client-id'
-export PCVUE_CLIENT_SECRET='your-client-secret'
-export PCVUE_USERNAME='your-wst-username'
-export PCVUE_PASSWORD='your-wst-password'
-docker compose up --build
+mkdir -p secrets
+chmod 700 secrets
+umask 077
+read -r -s -p 'PCVue client secret: ' secret; printf '\n'
+printf '%s' "$secret" > secrets/pcvue_client_secret
+read -r -s -p 'PCVue password: ' secret; printf '\n'
+printf '%s' "$secret" > secrets/pcvue_password
+unset secret
+docker compose up --build pcvue-exporter
 ```
+
+Compose mounts these files under `/run/secrets/` and provides only their paths
+in the container environment. The `secrets/` directory is excluded from Git and
+the Docker build context. Local Compose file-based secrets are still files on
+the host: protect their permissions and backups. Docker Swarm-managed secrets
+provide a different storage and distribution mechanism.
 
 To run the fake WST API and a second exporter instance, use the `fake` profile. The exporter metrics will be available on port `9719`, and the fake API on port `8083`:
 
@@ -326,7 +355,9 @@ To run the fake WST API and a second exporter instance, use the `fake` profile. 
 docker compose --profile fake up --build pcvue-exporter-fake
 ```
 
-For a WSO2/API-gateway deployment, provide `PCVUE_CLIENT_ID` and `PCVUE_CLIENT_SECRET`, then run the separate `wso2` profile. Its metrics endpoint is exposed on port `9720`:
+For WSO2/API-gateway, set the WSO2 URLs and `PCVUE_CLIENT_ID` in `.env`,
+create `secrets/pcvue_client_secret` as above, then run the `wso2` profile.
+It does not require the password file. Its metrics endpoint is on port `9720`:
 
 ```bash
 docker compose --profile wso2 up --build pcvue-exporter-wso2
@@ -334,16 +365,22 @@ docker compose --profile wso2 up --build pcvue-exporter-wso2
 
 Replace the example URLs and credentials before connecting to a real PCVue server or gateway.
 
-Run it:
+For a standalone container, mount both secret files and pass their paths. The
+example configuration also needs the non-secret API URLs, client ID and username;
+set these in an environment file (for example `.env`) before running:
+
 ```bash
 docker run --rm \
   -p 9718:9718 \
-  -e PCVUE_PASSWORD='your-password' \
-  -v "$PWD/config.yml:/config/config.yml:ro" \
-  pcvue-exporter:local \
-  --config.file=/config/config.yml \
-  --web.listen-address=0.0.0.0:9718 \
-  --web.metrics-path=/metrics \
-  --log.level=info \
-  --log.format=json
+  --env-file .env \
+  -e PCVUE_CLIENT_SECRET_FILE=/run/secrets/pcvue_client_secret \
+  -e PCVUE_PASSWORD_FILE=/run/secrets/pcvue_password \
+  -v "$PWD/secrets/pcvue_client_secret:/run/secrets/pcvue_client_secret:ro" \
+  -v "$PWD/secrets/pcvue_password:/run/secrets/pcvue_password:ro" \
+  -v "$PWD/config.api.example.yml:/config/config.yml:ro" \
+  pcvue-exporter:local
 ```
+
+If migrating an older `.env`, remove `PCVUE_CLIENT_SECRET` and `PCVUE_PASSWORD`
+from it before using `--env-file`; the exporter rejects both a nonempty value
+and its corresponding `_FILE` setting.
