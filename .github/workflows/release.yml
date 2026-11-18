@@ -1,4 +1,4 @@
-name: Release Docker image
+name: Release
 
 on:
   push:
@@ -65,18 +65,104 @@ jobs:
             BUILD_USER=github-actions
           tags: ${{ steps.meta.outputs.tags }}
 
+  windows:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    outputs:
+      archive: ${{ steps.package.outputs.archive }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Test on Windows
+        run: go test ./...
+
+      - name: Build Windows executable
+        shell: pwsh
+        run: |
+          $env:CGO_ENABLED = "0"
+          $env:GOOS = "windows"
+          $env:GOARCH = "amd64"
+          $buildDate = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+          $ldflags = "-s -w " +
+            "-X github.com/prometheus/common/version.Version=$env:GITHUB_REF_NAME " +
+            "-X github.com/prometheus/common/version.Revision=$env:GITHUB_SHA " +
+            "-X github.com/prometheus/common/version.Branch= " +
+            "-X github.com/prometheus/common/version.BuildDate=$buildDate " +
+            "-X github.com/prometheus/common/version.BuildUser=github-actions"
+          New-Item -ItemType Directory -Path package | Out-Null
+          go build -trimpath -ldflags $ldflags -o package/pcvue-exporter.exe ./cmd/pcvue-exporter
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Package Windows release
+        id: package
+        shell: pwsh
+        run: |
+          Copy-Item README.md, LICENSE, config.api.example.yml, config.wso2.example.yml -Destination package
+          $safeVersion = $env:GITHUB_REF_NAME -replace '[^a-zA-Z0-9._-]', '-'
+          $archive = "pcvue-exporter_${safeVersion}_windows_amd64.zip"
+          New-Item -ItemType Directory -Path release | Out-Null
+          Compress-Archive -Path package/* -DestinationPath "release/$archive"
+          Expand-Archive -Path "release/$archive" -DestinationPath unpacked
+          $expected = @("pcvue-exporter.exe", "README.md", "LICENSE", "config.api.example.yml", "config.wso2.example.yml")
+          $actual = @(Get-ChildItem -Path unpacked -File | Select-Object -ExpandProperty Name)
+          if ((Get-ChildItem -Path unpacked -Directory) -or (Compare-Object $expected $actual)) {
+            throw "Unexpected files in Windows archive: $actual"
+          }
+          $versionOutput = & ./unpacked/pcvue-exporter.exe --version 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not $versionOutput.Contains("version $env:GITHUB_REF_NAME") -or
+              -not $versionOutput.Contains("revision: $env:GITHUB_SHA") -or
+              -not $versionOutput.Contains("platform:         windows/amd64")) {
+            throw "Unexpected executable version information: $versionOutput"
+          }
+          $hash = (Get-FileHash -Algorithm SHA256 "release/$archive").Hash.ToLowerInvariant()
+          "$hash  $archive" | Set-Content -Encoding utf8NoBOM "release/$archive.sha256"
+          "archive=$archive" >> $env:GITHUB_OUTPUT
+
+      - name: Upload Windows release files
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: release/
+          if-no-files-found: error
+
   github-release:
-    needs: docker
+    needs: [docker, windows]
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
+      - name: Download Windows release files
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-release
+          path: release
+
+      - name: Verify Windows archive checksum
+        env:
+          ARCHIVE: ${{ needs.windows.outputs.archive }}
+        run: |
+          cd release
+          sha256sum --check "$ARCHIVE.sha256"
+
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ARCHIVE: ${{ needs.windows.outputs.archive }}
         run: >-
           gh release create "$GITHUB_REF_NAME"
+          "release/$ARCHIVE"
+          "release/$ARCHIVE.sha256"
           --repo "$GITHUB_REPOSITORY"
           --verify-tag
           --generate-notes
