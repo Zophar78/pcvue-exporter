@@ -6,11 +6,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -52,16 +54,15 @@ func newBuildInfoCollector() prometheus.Collector {
 	)
 }
 
-func newLandingPage() (http.Handler, error) {
+func newLandingPage(metricsPath string) (http.Handler, error) {
 	return web.NewLandingPage(web.LandingConfig{
 		Name:        name,
 		Description: "Prometheus exporter for PCVue SCADA system.",
 		Version:     version.Version,
 		Profiling:   "false",
-		Links: []web.LandingLinks{
-			{Address: "/metrics", Text: "Metrics"},
-			{Address: "/healthz", Text: "Healthz"},
-		},
+		// The toolkit prefixes Links with an absolute route. Relative links keep
+		// the browser's external path when a reverse proxy strips its prefix.
+		ExtraHTML: fmt.Sprintf(`<ul><li><a href="./%s">Metrics</a></li><li><a href="./healthz">Healthz</a></li></ul>`, html.EscapeString(strings.TrimPrefix(metricsPath, "/"))),
 	})
 }
 
@@ -201,7 +202,7 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	landingPage, err := newLandingPage()
+	landingPage, err := newLandingPage(options.webMetricsPath)
 	if err != nil {
 		logger.Error("failed to create landing page", "err", err)
 		os.Exit(1)

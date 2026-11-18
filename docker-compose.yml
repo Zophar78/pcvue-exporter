@@ -32,9 +32,12 @@ services:
       PCVUE_BASE_URL: ${PCVUE_BASE_URL:-}
       PCVUE_TOKEN_URL: ${PCVUE_TOKEN_URL:-}
       PCVUE_CLIENT_ID: ${PCVUE_CLIENT_ID:-}
-      PCVUE_CLIENT_SECRET: ${PCVUE_CLIENT_SECRET:-}
+      PCVUE_CLIENT_SECRET_FILE: /run/secrets/pcvue_client_secret
       PCVUE_USERNAME: ${PCVUE_USERNAME:-}
-      PCVUE_PASSWORD: ${PCVUE_PASSWORD:-}
+      PCVUE_PASSWORD_FILE: /run/secrets/pcvue_password
+    secrets:
+      - pcvue_client_secret
+      - pcvue_password
     volumes:
       - ./config.api.example.yml:/config/config.yml:ro
 
@@ -48,7 +51,9 @@ services:
       PCVUE_WSO2_BASE_URL: ${PCVUE_WSO2_BASE_URL:-}
       PCVUE_WSO2_TOKEN_URL: ${PCVUE_WSO2_TOKEN_URL:-}
       PCVUE_CLIENT_ID: ${PCVUE_CLIENT_ID:-}
-      PCVUE_CLIENT_SECRET: ${PCVUE_CLIENT_SECRET:-}
+      PCVUE_CLIENT_SECRET_FILE: /run/secrets/pcvue_client_secret
+    secrets:
+      - pcvue_client_secret
     volumes:
       - ./config.wso2.example.yml:/config/config.yml:ro
 
@@ -72,3 +77,9 @@ services:
       - "9719:9718"
     volumes:
       - ./dev/fake-pcvue/config.yml:/config/config.yml:ro
+
+secrets:
+  pcvue_client_secret:
+    file: ./secrets/pcvue_client_secret
+  pcvue_password:
+    file: ./secrets/pcvue_password

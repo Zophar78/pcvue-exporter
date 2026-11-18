@@ -27,3 +27,6 @@ config.yml
 # OS
 .DS_Store
 Thumbs.db
+
+# Local Docker Compose secret files
+/secrets/
