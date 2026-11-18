@@ -97,7 +97,7 @@ go test -cover ./...
 
 The command tests cover CLI flags, the process health endpoint, and the
 healthcheck command. They use local test servers and do not contact PCVue.
-CI also runs `go build ./...` to verify compilation.
+CI runs the build, vet, and tests on both Linux and Windows.
 
 ## Authentication
 
@@ -299,15 +299,48 @@ go build \
   ./cmd/pcvue-exporter
 ```
 
-## Reverse proxy with a URL prefix
+## Windows
 
-When exposing the exporter under a prefix such as `https://example.com/pcvue/`,
-configure the proxy to strip `/pcvue` before forwarding requests to the
-exporter. The landing page uses relative links, including the configured
-`--web.metrics-path`, so they retain the external prefix. The proxy should
-redirect `/pcvue` to `/pcvue/`: the trailing slash is necessary for browsers
-to resolve relative links under the prefix. For example, route `/pcvue/metrics`
-to the exporter's `/metrics` and `/pcvue/healthz` to `/healthz`.
+Each release includes `pcvue-exporter_<version>_windows_amd64.zip` and a
+corresponding `.sha256` file. The archive contains the executable, example
+configurations, README, and license; it does not contain credentials. Windows
+ARM64 is not currently published.
+
+After downloading both files, compare the archive's SHA-256 hash with the hash
+in the `.sha256` file, replacing `<version>` with the release tag:
+
+```powershell
+Get-FileHash -Algorithm SHA256 ".\pcvue-exporter_<version>_windows_amd64.zip"
+Get-Content ".\pcvue-exporter_<version>_windows_amd64.zip.sha256"
+```
+
+Extract the archive, copy `config.api.example.yml` or
+`config.wso2.example.yml` to `config.yml`, and update the configuration for
+your installation. Supply the environment variables required by the chosen
+configuration to the process before starting it; the exporter does not load a
+`.env` file automatically. Protect credentials and configuration with
+appropriate Windows access controls.
+
+From the extracted directory, run:
+
+```powershell
+.\pcvue-exporter.exe --config.file=.\config.yml --web.listen-address=127.0.0.1:9718
+```
+
+Check `http://127.0.0.1:9718/healthz` and
+`http://127.0.0.1:9718/metrics`. To allow a remote Prometheus server to scrape
+metrics, bind to an appropriate network interface instead and restrict access
+with the Windows firewall. Install the PCVue server's CA certificate in the
+Windows trust store when using a private CA. The direct API example sets
+`insecure_skip_verify: true`; set it to `false` when using a trusted
+certificate.
+
+The executable is a console application, not a native Windows service. For
+automatic startup and restart, use an approved service wrapper such as WinSW or
+NSSM, with an absolute configuration path and the required environment
+variables available to the service account. Neither wrapper is bundled. Verify
+the wrapper's stop behavior before production use: forcibly terminating the
+process does not guarantee graceful shutdown or PCVue logout.
 
 ## Docker
 Build the image:

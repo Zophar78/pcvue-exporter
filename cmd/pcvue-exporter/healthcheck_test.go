@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -167,6 +168,17 @@ alarms:
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
+		if runtime.GOOS == "windows" {
+			if err := cmd.Process.Kill(); err != nil {
+				t.Errorf("kill exporter: %v", err)
+			}
+			if err := cmd.Wait(); err == nil {
+				t.Error("wait for killed exporter: expected non-zero exit")
+			} else if _, ok := err.(*exec.ExitError); !ok {
+				t.Errorf("wait for killed exporter: %v", err)
+			}
+			return
+		}
 		if err := cmd.Process.Signal(syscall.SIGTERM); err != nil {
 			t.Errorf("signal exporter: %v", err)
 		}
